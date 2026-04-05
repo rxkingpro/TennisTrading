@@ -1,12 +1,10 @@
 import streamlit as st
 import requests
-import cloudscraper
-from bs4 import BeautifulSoup
-import re
-import json
-import random
+import pandas as pd
+import numpy as np
+from io import StringIO
 from datetime import datetime, timedelta
-import time
+import re
 
 # ─────────────────────────────────────────────
 #  PAGE CONFIG
@@ -19,1031 +17,705 @@ st.set_page_config(
 )
 
 # ─────────────────────────────────────────────
-#  GLOBAL CSS — DARK LUXURY AESTHETIC
+#  GLOBAL CSS
 # ─────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@300;400;600&family=Inter:wght@300;400;500;600&display=swap');
-
 :root {
-  --bg-primary: #080c10;
-  --bg-card: #0d1117;
-  --bg-elevated: #161b22;
-  --border: #21262d;
-  --border-glow: #30d158;
-  --accent-green: #30d158;
-  --accent-red: #ff453a;
-  --accent-amber: #ffd60a;
-  --accent-blue: #0a84ff;
-  --text-primary: #f0f6fc;
-  --text-secondary: #8b949e;
-  --text-muted: #484f58;
-  --gold: #d4a843;
+  --bg-primary:#080c10; --bg-card:#0d1117; --bg-elevated:#161b22;
+  --border:#21262d; --accent-green:#30d158; --accent-red:#ff453a;
+  --accent-amber:#ffd60a; --accent-blue:#0a84ff;
+  --text-primary:#f0f6fc; --text-secondary:#8b949e; --text-muted:#484f58;
 }
-
-html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
-  background: var(--bg-primary) !important;
-  color: var(--text-primary) !important;
-  font-family: 'Inter', sans-serif;
-}
-
-[data-testid="stHeader"] { background: transparent !important; }
-[data-testid="stSidebar"] { background: var(--bg-card) !important; }
-section[data-testid="stSidebar"] > div { background: var(--bg-card) !important; }
-
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg-primary); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-/* Inputs */
-.stTextArea textarea, .stTextInput input {
-  background: var(--bg-elevated) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 8px !important;
-  color: var(--text-primary) !important;
-  font-family: 'JetBrains Mono', monospace !important;
-  font-size: 13px !important;
-}
-.stTextArea textarea:focus, .stTextInput input:focus {
-  border-color: var(--accent-green) !important;
-  box-shadow: 0 0 0 3px rgba(48,209,88,0.12) !important;
-}
-
-/* Buttons */
-.stButton > button {
-  background: linear-gradient(135deg, #30d158, #25a244) !important;
-  color: #000 !important;
-  font-family: 'Inter', sans-serif !important;
-  font-weight: 600 !important;
-  font-size: 14px !important;
-  letter-spacing: 0.5px !important;
-  border: none !important;
-  border-radius: 10px !important;
-  padding: 14px 32px !important;
-  transition: all 0.2s ease !important;
-  width: 100%;
-}
-.stButton > button:hover {
-  transform: translateY(-1px) !important;
-  box-shadow: 0 8px 24px rgba(48,209,88,0.35) !important;
-}
-
-/* Hide Streamlit branding */
-#MainMenu, footer, header { visibility: hidden !important; }
-.block-container { padding-top: 2rem !important; max-width: 1400px !important; }
-
-/* Metric cards */
-.metric-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px 24px;
-  margin-bottom: 12px;
-  transition: border-color 0.2s;
-}
-.metric-card:hover { border-color: var(--border-glow); }
-
-/* Table styles */
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.data-table th {
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-}
-.data-table td {
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-  color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
-}
-.data-table tr:hover td { background: var(--bg-elevated); }
-
-/* Status badges */
-.badge {
-  display: inline-block;
-  padding: 3px 10px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-}
-.badge-green { background: rgba(48,209,88,0.15); color: #30d158; border: 1px solid rgba(48,209,88,0.3); }
-.badge-red { background: rgba(255,69,58,0.15); color: #ff453a; border: 1px solid rgba(255,69,58,0.3); }
-.badge-amber { background: rgba(255,214,10,0.15); color: #ffd60a; border: 1px solid rgba(255,214,10,0.3); }
-.badge-blue { background: rgba(10,132,255,0.15); color: #0a84ff; border: 1px solid rgba(10,132,255,0.3); }
-
-/* Section headers */
-.section-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 8px;
-}
-
-/* Progress bar custom */
-.stat-bar-container { margin: 6px 0; }
-.stat-bar-label { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px; }
-.stat-bar { height: 6px; border-radius: 3px; background: var(--bg-elevated); overflow: hidden; }
-.stat-bar-fill { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
-
-/* Verdict box */
-.verdict-box {
-  background: linear-gradient(135deg, rgba(48,209,88,0.08), rgba(48,209,88,0.03));
-  border: 1px solid rgba(48,209,88,0.4);
-  border-radius: 16px;
-  padding: 28px 32px;
-  margin-top: 8px;
-}
-.verdict-box.danger {
-  background: linear-gradient(135deg, rgba(255,69,58,0.08), rgba(255,69,58,0.03));
-  border-color: rgba(255,69,58,0.4);
-}
-.verdict-box.neutral {
-  background: linear-gradient(135deg, rgba(255,214,10,0.08), rgba(255,214,10,0.03));
-  border-color: rgba(255,214,10,0.4);
-}
-
-/* Divider */
-.divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
-
-/* Alert box */
-.alert-box {
-  background: rgba(255,214,10,0.08);
-  border: 1px solid rgba(255,214,10,0.3);
-  border-radius: 10px;
-  padding: 14px 18px;
-  font-size: 13px;
-  color: var(--accent-amber);
-  margin-bottom: 16px;
-}
-
-/* Hero title */
-.hero-title {
-  font-family: 'DM Serif Display', serif;
-  font-size: 48px;
-  background: linear-gradient(135deg, #f0f6fc 30%, #30d158);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  line-height: 1.1;
-  margin-bottom: 8px;
-}
-.hero-sub {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  letter-spacing: 3px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-}
+html,body,[data-testid="stAppViewContainer"],[data-testid="stApp"]{background:var(--bg-primary)!important;color:var(--text-primary)!important;font-family:'Inter',sans-serif;}
+[data-testid="stHeader"]{background:transparent!important;}
+::-webkit-scrollbar{width:6px;} ::-webkit-scrollbar-track{background:var(--bg-primary);} ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+.stTextArea textarea,.stTextInput input{background:var(--bg-elevated)!important;border:1px solid var(--border)!important;border-radius:8px!important;color:var(--text-primary)!important;font-family:'JetBrains Mono',monospace!important;font-size:13px!important;}
+.stTextArea textarea:focus,.stTextInput input:focus{border-color:var(--accent-green)!important;box-shadow:0 0 0 3px rgba(48,209,88,0.12)!important;}
+div[data-baseweb="select"]>div{background:var(--bg-elevated)!important;border:1px solid var(--border)!important;border-radius:8px!important;color:var(--text-primary)!important;}
+.stButton>button{background:linear-gradient(135deg,#30d158,#25a244)!important;color:#000!important;font-family:'Inter',sans-serif!important;font-weight:700!important;font-size:14px!important;letter-spacing:0.5px!important;border:none!important;border-radius:10px!important;padding:14px 32px!important;transition:all 0.2s ease!important;width:100%;}
+.stButton>button:hover{transform:translateY(-1px)!important;box-shadow:0 8px 24px rgba(48,209,88,0.35)!important;}
+#MainMenu,footer,header{visibility:hidden!important;}
+.block-container{padding-top:2rem!important;max-width:1400px!important;}
+.metric-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:12px;}
+.data-table{width:100%;border-collapse:collapse;font-size:13px;}
+.data-table th{background:var(--bg-elevated);color:var(--text-secondary);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:10px 14px;border-bottom:1px solid var(--border);text-align:left;}
+.data-table td{padding:9px 14px;border-bottom:1px solid var(--border);color:var(--text-primary);}
+.data-table tr:hover td{background:var(--bg-elevated);}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:0.3px;}
+.badge-green{background:rgba(48,209,88,0.15);color:#30d158;border:1px solid rgba(48,209,88,0.3);}
+.badge-red{background:rgba(255,69,58,0.15);color:#ff453a;border:1px solid rgba(255,69,58,0.3);}
+.badge-amber{background:rgba(255,214,10,0.15);color:#ffd60a;border:1px solid rgba(255,214,10,0.3);}
+.badge-blue{background:rgba(10,132,255,0.15);color:#0a84ff;border:1px solid rgba(10,132,255,0.3);}
+.badge-purple{background:rgba(191,90,242,0.15);color:#bf5af2;border:1px solid rgba(191,90,242,0.3);}
+.section-label{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;}
+.stat-bar-container{margin:8px 0;}
+.stat-bar{height:6px;border-radius:3px;background:var(--bg-elevated);overflow:hidden;}
+.stat-bar-fill{height:100%;border-radius:3px;}
+.verdict-box{background:linear-gradient(135deg,rgba(48,209,88,0.08),rgba(48,209,88,0.02));border:1px solid rgba(48,209,88,0.35);border-radius:16px;padding:28px 32px;margin-top:8px;}
+.verdict-box.danger{background:linear-gradient(135deg,rgba(255,69,58,0.08),rgba(255,69,58,0.02));border-color:rgba(255,69,58,0.35);}
+.verdict-box.neutral{background:linear-gradient(135deg,rgba(255,214,10,0.08),rgba(255,214,10,0.02));border-color:rgba(255,214,10,0.35);}
+.divider{border:none;border-top:1px solid var(--border);margin:24px 0;}
+.hero-title{font-family:'DM Serif Display',serif;font-size:46px;background:linear-gradient(135deg,#f0f6fc 30%,#30d158);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.1;}
+.hero-sub{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:3px;color:var(--text-muted);text-transform:uppercase;}
+.info-box{background:rgba(10,132,255,0.08);border:1px solid rgba(10,132,255,0.25);border-radius:10px;padding:12px 18px;font-size:13px;color:#0a84ff;margin-bottom:16px;}
 </style>
 """, unsafe_allow_html=True)
 
+# ─────────────────────────────────────────────
+#  DATA LOADERS
+# ─────────────────────────────────────────────
+BASE = "https://raw.githubusercontent.com/JeffSackmann/tennis_atp/master"
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_players():
+    r = requests.get(f"{BASE}/atp_players.csv", timeout=15)
+    df = pd.read_csv(StringIO(r.text), header=None,
+                     names=["player_id","first_name","last_name","hand","dob","country"])
+    df["full_name"] = (df["first_name"].fillna("") + " " + df["last_name"].fillna("")).str.strip()
+    return df
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_rankings():
+    r = requests.get(f"{BASE}/atp_rankings_current.csv", timeout=15)
+    df = pd.read_csv(StringIO(r.text), header=None,
+                     names=["ranking_date","ranking","player_id","ranking_points"])
+    df["ranking_date"] = pd.to_datetime(df["ranking_date"].astype(str), format="%Y%m%d", errors="coerce")
+    latest = df["ranking_date"].max()
+    return df[df["ranking_date"] == latest].copy()
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_matches_year(year):
+    r = requests.get(f"{BASE}/atp_matches_{year}.csv", timeout=20)
+    if r.status_code != 200:
+        return pd.DataFrame()
+    return pd.read_csv(StringIO(r.text), low_memory=False)
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_recent_matches():
+    cy = datetime.now().year
+    frames = [load_matches_year(y) for y in range(cy-2, cy+1)]
+    frames = [f for f in frames if not f.empty]
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 # ─────────────────────────────────────────────
-#  SCRAPER ENGINE
+#  PLAYER SEARCH
 # ─────────────────────────────────────────────
-def try_scrape_url(url: str):
-    """Attempt to scrape the match page using cloudscraper or requests."""
+def find_player(query, players_df):
+    q = query.strip().lower()
+    # Exact full name
+    m = players_df["full_name"].str.lower() == q
+    if m.any(): return players_df[m].iloc[0]
+    # Last name exact
+    m = players_df["last_name"].str.lower() == q
+    if m.any(): return players_df[m].iloc[0]
+    # Contains in full name
+    m = players_df["full_name"].str.lower().str.contains(q, na=False)
+    if m.any(): return players_df[m].iloc[0]
+    # Contains in last name
+    m = players_df["last_name"].str.lower().str.contains(q, na=False)
+    if m.any(): return players_df[m].iloc[0]
+    return None
+
+def get_ranking(pid, rankings_df):
+    row = rankings_df[rankings_df["player_id"] == pid]
+    if not row.empty:
+        return int(row.iloc[0]["ranking"]), int(row.iloc[0]["ranking_points"])
+    return None, None
+
+# ─────────────────────────────────────────────
+#  MATCH PROCESSING
+# ─────────────────────────────────────────────
+def get_player_matches(pid, matches_df, n=30):
+    if matches_df.empty: return pd.DataFrame()
+    pid = int(pid)
+    def build(df, role):
+        out = df.copy()
+        if role == "winner":
+            out["result"] = "W"
+            out["opponent_name"] = out["loser_name"]
+            out["opponent_rank"] = out["loser_rank"]
+            for stat in ["ace","df","svpt","1stIn","1stWon","2ndWon","bpSaved","bpFaced"]:
+                out[f"player_{stat}"] = out.get(f"w_{stat}", pd.Series(dtype=float))
+                out[f"opp_{stat}"] = out.get(f"l_{stat}", pd.Series(dtype=float))
+        else:
+            out["result"] = "L"
+            out["opponent_name"] = out["winner_name"]
+            out["opponent_rank"] = out["winner_rank"]
+            for stat in ["ace","df","svpt","1stIn","1stWon","2ndWon","bpSaved","bpFaced"]:
+                out[f"player_{stat}"] = out.get(f"l_{stat}", pd.Series(dtype=float))
+                out[f"opp_{stat}"] = out.get(f"w_{stat}", pd.Series(dtype=float))
+        return out
+
+    as_w = build(matches_df[matches_df["winner_id"] == pid].copy(), "winner")
+    as_l = build(matches_df[matches_df["loser_id"] == pid].copy(), "loser")
+    combined = pd.concat([as_w, as_l], ignore_index=True)
+    combined["tourney_date"] = pd.to_datetime(combined["tourney_date"].astype(str), format="%Y%m%d", errors="coerce")
+    combined = combined.sort_values("tourney_date", ascending=False)
+    return combined.head(n)
+
+def safe_pct(num, den):
     try:
-        scraper = cloudscraper.create_scraper(
-            browser={"browser": "chrome", "platform": "windows", "mobile": False}
-        )
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        }
-        resp = scraper.get(url, headers=headers, timeout=15)
-        if resp.status_code == 200:
-            return resp.text, None
-        return None, f"HTTP {resp.status_code} — site bloqueou o pedido."
-    except Exception as e:
-        return None, str(e)
+        n, d = float(num), float(den)
+        return round(n/d*100, 1) if d > 0 else None
+    except: return None
 
+def srv_stats(matches):
+    s = {"first_srv_pct":None,"pts_won_1st":None,"pts_won_2nd":None,
+         "return_pts_won":None,"aces_pm":None,"df_pm":None,
+         "bp_saved_pct":None,"bp_converted_pct":None}
+    if matches.empty: return s
+    def ss(col):
+        try: return pd.to_numeric(matches[col], errors="coerce").sum()
+        except: return 0
+    svpt=ss("player_svpt"); fin=ss("player_1stIn"); fwon=ss("player_1stWon")
+    swon=ss("player_2ndWon"); aces=ss("player_ace"); dfs=ss("player_df")
+    bps=ss("player_bpSaved"); bpf=ss("player_bpFaced")
+    osvpt=ss("opp_svpt"); ofin=ss("opp_1stIn"); ofwon=ss("opp_1stWon")
+    oswon=ss("opp_2ndWon"); obps=ss("opp_bpSaved"); obpf=ss("opp_bpFaced")
+    s2nd = svpt - fin
+    s["first_srv_pct"] = safe_pct(fin, svpt)
+    s["pts_won_1st"] = safe_pct(fwon, fin)
+    s["pts_won_2nd"] = safe_pct(swon, s2nd) if s2nd > 0 else None
+    s["aces_pm"] = round(aces/len(matches),1) if len(matches) > 0 else None
+    s["df_pm"] = round(dfs/len(matches),1) if len(matches) > 0 else None
+    s["bp_saved_pct"] = safe_pct(bps, bpf)
+    ret_won = osvpt - ofwon - oswon
+    s["return_pts_won"] = safe_pct(ret_won, osvpt)
+    s["bp_converted_pct"] = safe_pct(obpf - obps, obpf)
+    return s
 
-# ─────────────────────────────────────────────
-#  PARSER — Extract player names from HTML
-# ─────────────────────────────────────────────
-def parse_players_from_html(html: str):
-    soup = BeautifulSoup(html, "html.parser")
-    players = []
+def surface_form(matches, surface, n=10):
+    if matches.empty: return 0, 0, 0
+    last = matches.head(n)
+    ww, wt, sw, sc = 0, 0, 0, 0
+    for _, row in last.iterrows():
+        same = str(row.get("surface","")).lower() == surface.lower()
+        w = 2 if same else 1
+        wt += w
+        if row["result"] == "W": ww += w
+        if same:
+            sc += 1
+            if row["result"] == "W": sw += 1
+    sf = round(ww/wt*100,1) if wt > 0 else 0
+    return sf, sw, sc
 
-    # Flashscore patterns
-    patterns = [
-        {"class_": re.compile(r"participant__participantName|duelParticipant__name|home.*name|away.*name", re.I)},
-        {"class_": re.compile(r"homeParticipant|awayParticipant", re.I)},
-    ]
-    for pat in patterns:
-        found = soup.find_all(True, pat)
-        names = [el.get_text(strip=True) for el in found if el.get_text(strip=True)]
-        if len(names) >= 2:
-            players = names[:2]
-            break
-
-    # Generic fallback — title tag
-    if len(players) < 2:
-        title = soup.title.string if soup.title else ""
-        if " - " in title or " vs " in title.lower():
-            sep = " - " if " - " in title else " vs "
-            parts = title.split(sep)
-            if len(parts) >= 2:
-                players = [parts[0].strip(), parts[1].strip().split("|")[0].strip()]
-
-    return players if len(players) >= 2 else None
-
-
-def extract_match_meta(html: str):
-    """Try to extract surface, tournament, round from HTML."""
-    soup = BeautifulSoup(html, "html.parser")
-    meta = {"surface": None, "tournament": None, "round": None}
-
-    text = soup.get_text(" ", strip=True).lower()
-    surfaces = {"clay": "Clay", "hard": "Hard", "grass": "Grass", "carpet": "Carpet (Indoor)"}
-    for key, val in surfaces.items():
-        if key in text:
-            meta["surface"] = val
-            break
-
-    rounds_kw = ["final", "semifinal", "quarterfinal", "r16", "r32", "r64", "r128", "round"]
-    for r in rounds_kw:
-        if r in text:
-            meta["round"] = r.title()
-            break
-
-    return meta
-
-
-# ─────────────────────────────────────────────
-#  DATA SIMULATION ENGINE
-#  (realistic stat generation based on player name seed)
-# ─────────────────────────────────────────────
-def seed_from_name(name: str) -> int:
-    return sum(ord(c) for c in name)
-
-
-def generate_player_data(name: str, surface: str = "Hard"):
-    seed = seed_from_name(name)
-    rng = random.Random(seed)
-
-    surfaces = ["Hard", "Clay", "Grass", "Carpet (Indoor)"]
-    hand_options = ["Right", "Left"]
-    handedness = hand_options[seed % 5 == 0]  # ~20% left-handed
-
-    # Last 10 matches
-    matches = []
-    surface_wins = 0
-    surface_count = 0
-    for i in range(10):
-        match_surface = rng.choice(surfaces)
-        opponent_rating = rng.randint(60, 95)
-        is_same_surface = match_surface == surface
-        # Weight: better perf on same surface
-        win_prob = 0.55 + (0.1 if is_same_surface else 0) - (opponent_rating - 75) * 0.005
-        win_prob = max(0.2, min(0.85, win_prob))
-        won = rng.random() < win_prob
-        score_sets = []
-        sets_won = 0
-        sets_lost = 0
-        tb_won = 0
-        tb_lost = 0
-        for s in range(rng.randint(2, 3)):
-            if rng.random() < 0.2:
-                tb_result = rng.random() < 0.5
-                if tb_result:
-                    score_sets.append("7-6")
-                    sets_won += 1
-                    tb_won += 1
-                else:
-                    score_sets.append("6-7")
-                    sets_lost += 1
-                    tb_lost += 1
-            else:
-                p = rng.randint(4, 6)
-                o = rng.randint(1, 4)
-                if p > o:
-                    score_sets.append(f"{p}-{o}")
-                    sets_won += 1
-                else:
-                    score_sets.append(f"{o}-{p}")
-                    sets_lost += 1
-
-        days_ago = rng.randint(3, 90)
-        match_date = (datetime.now() - timedelta(days=days_ago)).strftime("%d/%m/%y")
-        tour = rng.choice(["ATP", "ATP 250", "ATP 500", "Masters", "Grand Slam"])
-        opp_name = rng.choice([
-            "Djokovic N.", "Alcaraz C.", "Medvedev D.", "Zverev A.", "Rune H.",
-            "Fritz T.", "De Minaur A.", "Hurkacz H.", "Tsitsipas S.", "Ruud C.",
-            "Norrie C.", "Dimitrov G.", "Paul T.", "Tiafoe F.", "Musetti L."
-        ])
-
-        if is_same_surface:
-            surface_count += 1
-            if won:
-                surface_wins += 1
-
-        matches.append({
-            "date": match_date,
-            "opponent": opp_name,
-            "surface": match_surface,
-            "result": "W" if won else "L",
-            "score": " ".join(score_sets),
-            "tb_won": tb_won,
-            "tb_lost": tb_lost,
-            "same_surface": is_same_surface,
-            "deciding_set": sets_won + sets_lost >= 3,
-            "won_deciding": won and sets_won + sets_lost >= 3,
-        })
-
-    # Aggregate stats
-    wins = sum(1 for m in matches if m["result"] == "W")
-    total_tb = sum(m["tb_won"] + m["tb_lost"] for m in matches)
-    tb_won_total = sum(m["tb_won"] for m in matches)
-    tb_lost_total = sum(m["tb_lost"] for m in matches)
-    deciding_set_games = [m for m in matches if m["deciding_set"]]
-    deciding_set_wins = sum(1 for m in deciding_set_games if m["won_deciding"])
-
-    # Last 3 tiebreaks
-    last_tb_results = []
-    for m in matches:
-        last_tb_results.extend(["W"] * m["tb_won"] + ["L"] * m["tb_lost"])
-    last_3_tb = last_tb_results[-3:] if len(last_tb_results) >= 3 else last_tb_results
-    mentally_unstable = len(last_3_tb) >= 3 and all(r == "L" for r in last_3_tb)
-
-    # Service stats
-    first_srv_pct = rng.randint(58, 78)
-    pts_won_1st_srv = rng.randint(68, 82)
-    pts_won_2nd_srv = rng.randint(42, 58)
-    return_pts_won = rng.randint(32, 48)
-    aces_per_match = round(rng.uniform(3, 14), 1)
-    df_per_match = round(rng.uniform(1, 5), 1)
-    bp_saved_pct = rng.randint(52, 78)
-    bp_converted_pct = rng.randint(35, 55)
-
-    # Surface weighted form
-    weighted_wins = 0
-    weighted_total = 0
-    for m in matches:
-        w = 2 if m["same_surface"] else 1
-        weighted_total += w
-        if m["result"] == "W":
-            weighted_wins += w
-    surface_form = round((weighted_wins / weighted_total) * 100, 1) if weighted_total > 0 else 0
-
+def mental_stats(matches):
+    tb_seq, tb_w, tb_l, dec_w, dec_t = [], 0, 0, 0, 0
+    for _, row in matches.iterrows():
+        score = str(row.get("score",""))
+        result = row.get("result","")
+        for s in score.split():
+            if "7-6" in s or "6-7" in s:
+                won = (result=="W" and "7-6" in s) or (result=="L" and "6-7" in s)
+                if won: tb_w += 1; tb_seq.append("W")
+                else: tb_l += 1; tb_seq.append("L")
+        sets = [s for s in score.split() if re.match(r'\d+-\d+', s)]
+        if len(sets) >= 3:
+            dec_t += 1
+            if result == "W": dec_w += 1
+    last3 = tb_seq[-3:]
+    total_tb = tb_w + tb_l
     return {
-        "name": name,
-        "handedness": handedness,
-        "surface_form": surface_form,
-        "wins": wins,
-        "losses": 10 - wins,
-        "winrate": wins * 10,
-        "tb_won": tb_won_total,
-        "tb_lost": tb_lost_total,
-        "tb_pct": round((tb_won_total / total_tb * 100) if total_tb > 0 else 50, 1),
-        "deciding_wins": deciding_set_wins,
-        "deciding_total": len(deciding_set_games),
-        "deciding_pct": round((deciding_set_wins / len(deciding_set_games) * 100) if deciding_set_games else 50, 1),
-        "mentally_unstable": mentally_unstable,
-        "last_3_tb": last_3_tb,
-        "first_srv_pct": first_srv_pct,
-        "pts_won_1st_srv": pts_won_1st_srv,
-        "pts_won_2nd_srv": pts_won_2nd_srv,
-        "return_pts_won": return_pts_won,
-        "aces_per_match": aces_per_match,
-        "df_per_match": df_per_match,
-        "bp_saved_pct": bp_saved_pct,
-        "bp_converted_pct": bp_converted_pct,
-        "matches": matches,
-        "surface_wins": surface_wins,
-        "surface_count": surface_count,
+        "tb_won": tb_w, "tb_lost": tb_l,
+        "tb_pct": round(tb_w/total_tb*100,1) if total_tb > 0 else 50.0,
+        "last3": last3,
+        "mentally_unstable": len(last3)==3 and all(r=="L" for r in last3),
+        "dec_wins": dec_w, "dec_total": dec_t,
+        "dec_pct": round(dec_w/dec_t*100,1) if dec_t > 0 else 50.0
     }
 
+def get_h2h(p1id, p2id, matches_df):
+    if matches_df.empty: return 0, 0, []
+    p1id, p2id = int(p1id), int(p2id)
+    h = matches_df[
+        ((matches_df["winner_id"]==p1id)&(matches_df["loser_id"]==p2id))|
+        ((matches_df["winner_id"]==p2id)&(matches_df["loser_id"]==p1id))
+    ].copy()
+    h["tourney_date"] = pd.to_datetime(h["tourney_date"].astype(str), format="%Y%m%d", errors="coerce")
+    h = h.sort_values("tourney_date", ascending=False)
+    w1 = len(h[h["winner_id"]==p1id])
+    w2 = len(h[h["winner_id"]==p2id])
+    recent = []
+    for _, row in h.head(6).iterrows():
+        d = row["tourney_date"].strftime("%d/%m/%y") if pd.notna(row["tourney_date"]) else "?"
+        recent.append({"date":d,"winner":str(row.get("winner_name","?")),"tourney":str(row.get("tourney_name","?")),
+                       "surface":str(row.get("surface","?")),"score":str(row.get("score","?"))})
+    return w1, w2, recent
 
 # ─────────────────────────────────────────────
-#  ANALYSIS ENGINE
+#  EDGE SCORE
 # ─────────────────────────────────────────────
-def compute_edge_score(p1, p2, surface):
-    score1 = 0
-    score2 = 0
-
-    # Surface form (weight: 30)
-    if p1["surface_form"] > p2["surface_form"]:
-        score1 += 30 * (p1["surface_form"] - p2["surface_form"]) / 100
+def edge_score(p1sf, p2sf, p1srv, p2srv, p1m, p2m, n1, n2):
+    s1, s2 = 0, 0
+    # Surface form 30pts
+    d = abs(p1sf-p2sf)
+    if p1sf>p2sf: s1+=min(30,d*0.4)
+    else: s2+=min(30,d*0.4)
+    # Service 25pts
+    srv1=(p1srv.get("pts_won_1st") or 65)*0.6+(p1srv.get("pts_won_2nd") or 50)*0.4
+    srv2=(p2srv.get("pts_won_1st") or 65)*0.6+(p2srv.get("pts_won_2nd") or 50)*0.4
+    d2=abs(srv1-srv2)
+    if srv1>srv2: s1+=min(25,d2*1.2)
+    else: s2+=min(25,d2*1.2)
+    # Return 20pts
+    r1=p1srv.get("return_pts_won") or 38; r2=p2srv.get("return_pts_won") or 38
+    d3=abs(r1-r2)
+    if r1>r2: s1+=min(20,d3*1.0)
+    else: s2+=min(20,d3*1.0)
+    # Mental 25pts
+    if p1m["mentally_unstable"] and not p2m["mentally_unstable"]: s2+=25
+    elif p2m["mentally_unstable"] and not p1m["mentally_unstable"]: s1+=25
     else:
-        score2 += 30 * (p2["surface_form"] - p1["surface_form"]) / 100
-
-    # Service dominance (weight: 25)
-    srv1 = p1["pts_won_1st_srv"] * 0.6 + p1["pts_won_2nd_srv"] * 0.4
-    srv2 = p2["pts_won_1st_srv"] * 0.6 + p2["pts_won_2nd_srv"] * 0.4
-    diff = abs(srv1 - srv2)
-    if srv1 > srv2:
-        score1 += min(25, diff * 1.5)
-    else:
-        score2 += min(25, diff * 1.5)
-
-    # Return game (weight: 20)
-    if p1["return_pts_won"] > p2["return_pts_won"]:
-        score1 += min(20, (p1["return_pts_won"] - p2["return_pts_won"]) * 1.2)
-    else:
-        score2 += min(20, (p2["return_pts_won"] - p1["return_pts_won"]) * 1.2)
-
-    # Mental (weight: 25)
-    if p1["mentally_unstable"] and not p2["mentally_unstable"]:
-        score2 += 25
-    elif p2["mentally_unstable"] and not p1["mentally_unstable"]:
-        score1 += 25
-    else:
-        tb_diff = p1["tb_pct"] - p2["tb_pct"]
-        if tb_diff > 0:
-            score1 += min(15, tb_diff * 0.5)
-        else:
-            score2 += min(15, abs(tb_diff) * 0.5)
-
-    total = score1 + score2
-    if total == 0:
-        return 50, 50, "COIN FLIP"
-    pct1 = round(score1 / total * 100)
-    pct2 = 100 - pct1
-    if pct1 >= 65:
-        verdict = f"FAVORITO CLARO — {p1['name'].split()[0].upper()}"
-        side = "p1"
-    elif pct2 >= 65:
-        verdict = f"FAVORITO CLARO — {p2['name'].split()[0].upper()}"
-        side = "p2"
-    elif pct1 >= 55:
-        verdict = f"LIGEIRA VANTAGEM — {p1['name'].split()[0].upper()}"
-        side = "p1"
-    elif pct2 >= 55:
-        verdict = f"LIGEIRA VANTAGEM — {p2['name'].split()[0].upper()}"
-        side = "p2"
-    else:
-        verdict = "MATCHUP EQUILIBRADO — SEM EDGE CLARO"
-        side = "neutral"
+        d4=abs(p1m["tb_pct"]-p2m["tb_pct"])
+        if p1m["tb_pct"]>p2m["tb_pct"]: s1+=min(15,d4*0.4)
+        else: s2+=min(15,d4*0.4)
+    total=s1+s2
+    if total==0: pct1,pct2=50,50
+    else: pct1=round(s1/total*100); pct2=100-pct1
+    gap=abs(pct1-pct2)
+    fav=n1.split()[-1] if pct1>pct2 else n2.split()[-1]
+    if gap>=20: verdict=f"FAVORITO CLARO — {fav.upper()}"; side="p1" if pct1>pct2 else "p2"
+    elif gap>=10: verdict=f"LIGEIRA VANTAGEM — {fav.upper()}"; side="p1" if pct1>pct2 else "p2"
+    else: verdict="MATCHUP EQUILIBRADO — SEM EDGE CLARO"; side="neutral"
     return pct1, pct2, verdict, side
 
-
-def handedness_analysis(p1, p2, surface):
-    h1, h2 = p1["handedness"], p2["handedness"]
-    if h1 == "Right" and h2 == "Left":
-        desc = (f"**Destro vs Canhoto** — Confronto classicamente complexo. "
-                f"O serviço de {p2['name'].split()[0]} abre o court para fora do backhand de "
-                f"{p1['name'].split()[0]} tanto no Ad court como no Deuce court, criando ângulos difíceis de cobrir. "
-                f"Em {surface}, este fator amplifica-se: "
-                + ("o deslize no Clay permite ao canhoto esticar o rival ao máximo." if surface == "Clay"
-                   else "a velocidade do Hard court favorece quem serve para o backhand com maior ângulo.")
-                + f" Nas Match Odds, o mercado tende a **sub-valorizar levemente canhotos** em confronto directo, "
-                f"especialmente em sets decisivos onde a pressão psicológica do ângulo de serviço é máxima.")
-    elif h1 == "Left" and h2 == "Right":
-        desc = (f"**Canhoto vs Destro** — {p1['name'].split()[0]} usa a natureza do seu serviço "
-                f"para isolar o backhand de {p2['name'].split()[0]}, especialmente no Ad court. "
-                f"Historicamente, canhotos têm edge estatístico em tiebreaks graças a este padrão repetitivo. "
-                f"Em {surface}, "
-                + ("no Clay o ritmo lento dá tempo ao destro para se reposicionar — edge do canhoto reduz-se ligeiramente." if surface == "Clay"
-                   else "no Hard/Grass a rapidez do ponto amplifica o ângulo do serviço canhoto.")
-                + f" **Nas Match Odds: considerar value no {p1['name'].split()[0]}** se odds acima de 1.80.")
+def hand_analysis(h1, h2, n1, n2, surface):
+    l1=n1.split()[-1]; l2=n2.split()[-1]
+    if h1=="L" and h2=="R":
+        return (f"**Canhoto vs Destro** — O serviço de {l1} abre o court para fora do backhand de {l2} "
+                f"tanto no Ad court como no Deuce court. "
+                +("Em Clay o deslize amplifica o esforço de reposicionamento do destro." if surface=="Clay"
+                  else f"Em {surface} a velocidade potencia o ângulo do serviço canhoto.")
+                +f" O mercado tende a sub-valorizar canhotos em confronto directo — verificar value em {l1} se odds acima de 1.85.")
+    elif h1=="R" and h2=="L":
+        return (f"**Destro vs Canhoto** — O serviço de {l2} isola consistentemente o backhand de {l1}. "
+                +("Em Clay o ritmo lento dá tempo a {l1} para se reposicionar." if surface=="Clay"
+                  else f"Em {surface} a rapidez do ponto amplifica o ângulo canhoto.")
+                +f" Canhotos têm edge estatístico em tiebreaks por este padrão repetitivo — considerar value em {l2} se odds acima de 1.80.")
     else:
-        hand = "Ambos Destros" if h1 == "Right" else "Ambos Canhotos"
-        desc = (f"**{hand}** — Sem factor de lateralidade. O matchup resolve-se puramente via "
-                f"métricas de serviço, retorno e resistência mental. Foco nas odds de games e sets "
-                f"em vez de Match Winner puro. Analisar **Break Points Converted** como KPI primário.")
-    return desc
-
+        h="Ambos Destros" if h1=="R" else "Ambos Canhotos"
+        return (f"**{h}** — Sem factor de lateralidade. O resultado resolve-se via serviço, retorno e resistência mental. "
+                f"Foco em Break Points Converted como KPI primário.")
 
 # ─────────────────────────────────────────────
-#  UI COMPONENTS
+#  UI HELPERS
 # ─────────────────────────────────────────────
-def render_stat_bar(label, val1, val2, unit="%", name1="P1", name2="P2"):
-    max_v = max(val1, val2, 1)
-    w1 = int(val1 / max_v * 100)
-    w2 = int(val2 / max_v * 100)
-    col_g = "#30d158" if val1 >= val2 else "#8b949e"
-    col_r = "#30d158" if val2 > val1 else "#8b949e"
-    st.markdown(f"""
-    <div class="stat-bar-container">
-      <div class="stat-bar-label">
-        <span style="color:#f0f6fc;font-weight:600">{val1}{unit}</span>
-        <span style="color:#8b949e;font-size:11px">{label}</span>
-        <span style="color:#f0f6fc;font-weight:600">{val2}{unit}</span>
+def stat_bar(label, v1, v2, unit="%"):
+    v1 = v1 or 0; v2 = v2 or 0
+    mx = max(v1, v2, 1)
+    w1=int(v1/mx*100); w2=int(v2/mx*100)
+    c1="#30d158" if v1>=v2 else "#8b949e"; c2="#30d158" if v2>v1 else "#8b949e"
+    st.markdown(f"""<div class="stat-bar-container">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span style="color:#f0f6fc;font-weight:600">{v1}{unit}</span>
+        <span style="color:#484f58;font-size:11px">{label}</span>
+        <span style="color:#f0f6fc;font-weight:600">{v2}{unit}</span>
       </div>
-      <div style="display:flex;gap:4px;align-items:center">
-        <div style="flex:1">
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width:{w1}%;background:{col_g};float:right"></div>
+      <div style="display:flex;gap:4px">
+        <div style="flex:1"><div class="stat-bar"><div class="stat-bar-fill" style="width:{w1}%;background:{c1};float:right"></div></div></div>
+        <div style="flex:1"><div class="stat-bar"><div class="stat-bar-fill" style="width:{w2}%;background:{c2}"></div></div></div>
+      </div></div>""", unsafe_allow_html=True)
+
+def matches_table(matches, surface):
+    if matches.empty:
+        st.markdown('<div style="color:#484f58;font-size:13px;padding:12px">Sem dados disponíveis.</div>', unsafe_allow_html=True)
+        return
+    scls={"Hard":"badge-blue","Clay":"badge-amber","Grass":"badge-green","Carpet":"badge-purple"}
+    rows=""
+    for _, m in matches.head(10).iterrows():
+        res=m.get("result","?")
+        rb=f'<span class="badge badge-green">W</span>' if res=="W" else f'<span class="badge badge-red">L</span>'
+        surf=str(m.get("surface","?"))
+        sc=scls.get(surf,"badge-blue")
+        same="★ " if surf.lower()==surface.lower() else ""
+        score=str(m.get("score","")).strip()
+        opp=str(m.get("opponent_name","?")).strip()
+        opp_r=m.get("opponent_rank","")
+        opp_rs=f"#{int(opp_r)}" if pd.notna(opp_r) and str(opp_r).strip() not in ["","nan"] else ""
+        date=m.get("tourney_date","")
+        ds=date.strftime("%d/%m/%y") if hasattr(date,"strftime") and pd.notna(date) else str(date)[:10]
+        tourney=str(m.get("tourney_name","")).strip()[:22]
+        rows+=f"""<tr>
+          <td style="color:#8b949e;white-space:nowrap">{ds}</td>
+          <td><div>{opp}</div><div style="font-size:10px;color:#484f58">{opp_rs}</div></td>
+          <td style="color:#8b949e">{tourney}</td>
+          <td><span class="badge {sc}">{same}{surf}</span></td>
+          <td>{rb}</td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:11px">{score}</td></tr>"""
+    st.markdown(f"""<table class="data-table"><thead><tr>
+      <th>Data</th><th>Adversário</th><th>Torneio</th><th>Piso</th><th>Res</th><th>Score</th>
+      </tr></thead><tbody>{rows}</tbody></table>""", unsafe_allow_html=True)
+
+def h2h_table(recent):
+    if not recent:
+        st.markdown('<div style="color:#484f58;font-size:13px;padding:8px">Sem confrontos directos nos dados (últimos 3 anos).</div>', unsafe_allow_html=True)
+        return
+    scls={"Hard":"badge-blue","Clay":"badge-amber","Grass":"badge-green","Carpet":"badge-purple"}
+    rows=""
+    for m in recent:
+        sc=scls.get(m["surface"],"badge-blue")
+        rows+=f"""<tr>
+          <td style="color:#8b949e">{m['date']}</td>
+          <td style="font-weight:600;color:#30d158">{m['winner']}</td>
+          <td style="color:#8b949e">{m['tourney']}</td>
+          <td><span class="badge {sc}">{m['surface']}</span></td>
+          <td style="font-family:'JetBrains Mono',monospace;font-size:11px">{m['score']}</td></tr>"""
+    st.markdown(f"""<table class="data-table"><thead><tr>
+      <th>Data</th><th>Vencedor</th><th>Torneio</th><th>Piso</th><th>Score</th>
+      </tr></thead><tbody>{rows}</tbody></table>""", unsafe_allow_html=True)
+
+def fmt(v, u="%"):
+    return f"{v}{u}" if v is not None else "N/D"
+
+# ─────────────────────────────────────────────
+#  MAIN
+# ─────────────────────────────────────────────
+def main():
+    st.markdown("""
+    <div style="text-align:center;padding:36px 0 16px">
+      <div class="hero-sub">Tennis Edge Analytics · Jeff Sackmann / Tennis Abstract</div>
+      <div class="hero-title">Elite Trading Dashboard</div>
+      <div style="color:#484f58;font-size:12px;margin-top:8px;font-family:'JetBrains Mono',monospace">
+        Rankings ATP reais · Últimos 3 anos de resultados · H2H histórico · Stats de serviço reais
+      </div>
+    </div>""", unsafe_allow_html=True)
+    st.markdown('<hr class="divider">', unsafe_allow_html=True)
+
+    c1, c2, c3, c4 = st.columns([2,2,1,1])
+    with c1:
+        st.markdown('<div class="section-label">Jogador 1</div>', unsafe_allow_html=True)
+        p1_in = st.text_input("p1","",placeholder="Ex: Djokovic, Sinner, Alcaraz...",label_visibility="collapsed")
+    with c2:
+        st.markdown('<div class="section-label">Jogador 2</div>', unsafe_allow_html=True)
+        p2_in = st.text_input("p2","",placeholder="Ex: Medvedev, Zverev, Rune...",label_visibility="collapsed")
+    with c3:
+        st.markdown('<div class="section-label">Piso</div>', unsafe_allow_html=True)
+        surface = st.selectbox("surf",["Hard","Clay","Grass","Carpet"],label_visibility="collapsed")
+    with c4:
+        st.markdown('<div class="section-label">&nbsp;</div>', unsafe_allow_html=True)
+        go = st.button("⚡ Gerar Relatório")
+
+    st.markdown("""<div class="info-box">
+      💡 <strong>Dados reais</strong> Jeff Sackmann / Tennis Abstract — Rankings ATP actuais, 
+      últimos 3 anos de resultados, stats de serviço e H2H histórico. 
+      Escreve o apelido: <em>Djokovic</em>, <em>Sinner</em>, <em>Alcaraz</em>, <em>Medvedev</em>...
+    </div>""", unsafe_allow_html=True)
+
+    if not go:
+        st.markdown("""<div style="text-align:center;padding:60px 20px;color:#484f58">
+          <div style="font-size:44px;margin-bottom:12px">🎾</div>
+          <div style="font-family:'DM Serif Display',serif;font-size:20px;color:#8b949e">Pronto para analisar</div>
+          <div style="font-size:12px;margin-top:8px;font-family:'JetBrains Mono',monospace">
+            Preenche os nomes dos dois jogadores e clica Gerar Relatório
+          </div></div>""", unsafe_allow_html=True)
+        return
+
+    if not p1_in.strip() or not p2_in.strip():
+        st.error("Preenche os dois nomes."); return
+
+    with st.spinner("A carregar dados ATP (Jeff Sackmann)..."):
+        try:
+            players_df = load_players()
+            rankings_df = load_rankings()
+            matches_df = load_recent_matches()
+        except Exception as e:
+            st.error(f"Erro ao carregar dados: {e}"); return
+
+    p1r = find_player(p1_in, players_df)
+    p2r = find_player(p2_in, players_df)
+    if p1r is None: st.error(f"'{p1_in}' não encontrado. Tenta o apelido completo."); return
+    if p2r is None: st.error(f"'{p2_in}' não encontrado. Tenta o apelido completo."); return
+
+    p1id=p1r["player_id"]; p2id=p2r["player_id"]
+    p1n=p1r["full_name"]; p2n=p2r["full_name"]
+    p1h=str(p1r.get("hand","R")).strip().upper()
+    p2h=str(p2r.get("hand","R")).strip().upper()
+
+    p1rank,p1pts=get_ranking(p1id,rankings_df)
+    p2rank,p2pts=get_ranking(p2id,rankings_df)
+
+    with st.spinner("A processar matches..."):
+        p1m=get_player_matches(p1id,matches_df,30)
+        p2m=get_player_matches(p2id,matches_df,30)
+
+    p1sf,p1sw,p1sc=surface_form(p1m,surface)
+    p2sf,p2sw,p2sc=surface_form(p2m,surface)
+    p1srv=srv_stats(p1m.head(15)); p2srv=srv_stats(p2m.head(15))
+    p1ment=mental_stats(p1m.head(20)); p2ment=mental_stats(p2m.head(20))
+    h2hw1,h2hw2,h2h_recent=get_h2h(p1id,p2id,matches_df)
+    pct1,pct2,verdict,side=edge_score(p1sf,p2sf,p1srv,p2srv,p1ment,p2ment,p1n,p2n)
+    hand_txt=hand_analysis(p1h,p2h,p1n,p2n,surface)
+
+    st.markdown('<hr class="divider">', unsafe_allow_html=True)
+
+    # ── HEADER ──
+    r1s=f"#{p1rank}" if p1rank else "NR"; r2s=f"#{p2rank}" if p2rank else "NR"
+    p1s=f"{p1pts:,} pts" if p1pts else ""; p2s=f"{p2pts:,} pts" if p2pts else ""
+    h1l="Canhoto 🤚" if p1h=="L" else "Destro ✋"
+    h2l="Canhoto 🤚" if p2h=="L" else "Destro ✋"
+    m1c="badge-red" if p1ment["mentally_unstable"] else "badge-green"
+    m2c="badge-red" if p2ment["mentally_unstable"] else "badge-green"
+    m1l="⚠ INSTÁVEL" if p1ment["mentally_unstable"] else "✓ ESTÁVEL"
+    m2l="⚠ INSTÁVEL" if p2ment["mentally_unstable"] else "✓ ESTÁVEL"
+
+    st.markdown(f"""
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:28px 36px;margin-bottom:20px">
+      <div class="section-label">Análise de Partida — Dados Reais ATP</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;flex-wrap:wrap;gap:20px">
+        <div style="text-align:center;flex:1;min-width:180px">
+          <div style="font-family:'DM Serif Display',serif;font-size:26px">{p1n}</div>
+          <div style="font-size:34px;font-weight:800;color:#30d158;margin:4px 0">{r1s}</div>
+          <div style="font-size:12px;color:#8b949e;margin-bottom:10px">{p1s}</div>
+          <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+            <span class="badge {m1c}">{m1l}</span>
+            <span class="badge badge-blue">{h1l}</span>
           </div>
         </div>
-        <div style="flex:1">
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width:{w2}%;background:{col_r}"></div>
+        <div style="text-align:center;padding:0 20px">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:20px;color:#484f58">VS</div>
+          <div style="margin-top:10px"><span class="badge badge-amber">{surface}</span></div>
+          <div style="margin-top:8px;font-size:11px;color:#484f58;font-family:'JetBrains Mono',monospace">H2H {h2hw1}–{h2hw2}</div>
+        </div>
+        <div style="text-align:center;flex:1;min-width:180px">
+          <div style="font-family:'DM Serif Display',serif;font-size:26px">{p2n}</div>
+          <div style="font-size:34px;font-weight:800;color:#30d158;margin:4px 0">{r2s}</div>
+          <div style="font-size:12px;color:#8b949e;margin-bottom:10px">{p2s}</div>
+          <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+            <span class="badge {m2c}">{m2l}</span>
+            <span class="badge badge-blue">{h2l}</span>
           </div>
         </div>
       </div>
     </div>""", unsafe_allow_html=True)
 
-
-def render_matches_table(matches, surface):
-    rows = ""
-    for m in matches:
-        result_badge = f'<span class="badge badge-green">W</span>' if m["result"] == "W" else f'<span class="badge badge-red">L</span>'
-        surf_badge_cls = {"Clay": "badge-amber", "Grass": "badge-green", "Hard": "badge-blue", "Carpet (Indoor)": "badge-blue"}.get(m["surface"], "badge-blue")
-        same = "★ " if m["same_surface"] else ""
-        tb_info = f'{m["tb_won"]}W/{m["tb_lost"]}L' if m["tb_won"] + m["tb_lost"] > 0 else "—"
-        rows += f"""<tr>
-          <td style="color:#8b949e">{m['date']}</td>
-          <td>{m['opponent']}</td>
-          <td><span class="badge {surf_badge_cls}">{same}{m['surface']}</span></td>
-          <td>{result_badge}</td>
-          <td style="font-family:'JetBrains Mono',monospace;font-size:12px">{m['score']}</td>
-          <td style="color:#8b949e">{tb_info}</td>
-        </tr>"""
+    # ── EDGE BAR ──
     st.markdown(f"""
-    <table class="data-table">
-      <thead><tr>
-        <th>Data</th><th>Adversário</th><th>Piso</th><th>Result</th><th>Score</th><th>Tie-Breaks</th>
-      </tr></thead>
-      <tbody>{rows}</tbody>
-    </table>""", unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────────
-#  MAIN APP
-# ─────────────────────────────────────────────
-def main():
-    # ── HERO HEADER ──
-    st.markdown("""
-    <div style="text-align:center;padding:40px 0 20px">
-      <div class="hero-sub">Tennis Edge Analytics</div>
-      <div class="hero-title">Elite Trading Dashboard</div>
-      <div style="color:#484f58;font-size:13px;margin-top:8px;font-family:'JetBrains Mono',monospace">
-        Análise profissional · Surface-weighted · Psychological edge
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px 28px;margin-bottom:20px">
+      <div class="section-label">Edge Score — Surface-Weighted Analysis</div>
+      <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
+        <div style="color:#f0f6fc;font-weight:700;font-size:16px;min-width:44px">{pct1}%</div>
+        <div style="flex:1;height:12px;background:var(--bg-elevated);border-radius:6px;overflow:hidden">
+          <div style="display:flex;height:100%">
+            <div style="width:{pct1}%;background:linear-gradient(90deg,#30d158,#25a244);border-radius:6px 0 0 6px"></div>
+            <div style="width:{pct2}%;background:linear-gradient(90deg,#ff453a,#cc3730);border-radius:0 6px 6px 0"></div>
+          </div>
+        </div>
+        <div style="color:#f0f6fc;font-weight:700;font-size:16px;min-width:44px;text-align:right">{pct2}%</div>
       </div>
-    </div>
-    """, unsafe_allow_html=True)
+      <div style="display:flex;justify-content:space-between;margin-top:5px">
+        <div style="font-size:11px;color:#8b949e;font-family:'JetBrains Mono',monospace">{p1n.split()[-1].upper()}</div>
+        <div style="font-size:11px;color:#8b949e;font-family:'JetBrains Mono',monospace">{p2n.split()[-1].upper()}</div>
+      </div>
+    </div>""", unsafe_allow_html=True)
 
-    st.markdown('<hr class="divider">', unsafe_allow_html=True)
+    # ── TABS ──
+    tab1,tab2,tab3,tab4,tab5 = st.tabs([
+        "📊 Forma & Piso","🎯 Serviço vs Retorno",
+        "🧠 Momento Psicológico","🤝 H2H & Matchup","🏆 Bottom Line"])
 
-    # ── INPUT SECTION ──
-    col_main, col_side = st.columns([3, 1])
-    with col_main:
-        st.markdown('<div class="section-label">🔗 Link do Jogo</div>', unsafe_allow_html=True)
-        url_input = st.text_input(
-            label="url",
-            placeholder="https://www.flashscore.com/match/... ou https://www.sofascore.com/...",
-            label_visibility="collapsed"
-        )
-
-    with col_side:
-        st.markdown('<div class="section-label">&nbsp;</div>', unsafe_allow_html=True)
-        generate_from_url = st.button("⚡ Gerar Relatório de Elite", key="gen_url")
-
-    st.markdown("""
-    <div class="alert-box">
-      ⚠️ <strong>Modo Avançado disponível</strong> — Se o scraper automático falhar (site com protecção anti-bot), 
-      expande a secção abaixo e cola o HTML da página para análise instantânea.
-    </div>
-    """, unsafe_allow_html=True)
-
-    with st.expander("📋 Modo Manual — Colar HTML da Página (fallback)"):
-        st.markdown('<div class="section-label">Cole o Código Fonte HTML da Página do Jogo</div>', unsafe_allow_html=True)
-        html_paste = st.text_area(
-            label="html_input",
-            height=180,
-            placeholder="Cole aqui o HTML completo... (Ctrl+U no browser → Ctrl+A → Ctrl+C)",
-            label_visibility="collapsed"
-        )
-        st.markdown('<div class="section-label">Nome do Jogador 1</div>', unsafe_allow_html=True)
-        manual_p1 = st.text_input("p1_name", placeholder="Ex: Djokovic N.", label_visibility="collapsed")
-        st.markdown('<div class="section-label">Nome do Jogador 2</div>', unsafe_allow_html=True)
-        manual_p2 = st.text_input("p2_name", placeholder="Ex: Alcaraz C.", label_visibility="collapsed")
-        st.markdown('<div class="section-label">Piso do Torneio</div>', unsafe_allow_html=True)
-        manual_surface = st.selectbox("surface", ["Hard", "Clay", "Grass", "Carpet (Indoor)"], label_visibility="collapsed")
-        generate_manual = st.button("⚡ Analisar com Dados Manuais", key="gen_manual")
-
-    # ─────────────────────────────
-    #  PROCESSING
-    # ─────────────────────────────
-    players = None
-    surface = "Hard"
-    source_mode = None
-    error_msg = None
-
-    if generate_from_url and url_input.strip():
-        with st.spinner("🔍 A aceder à página do jogo..."):
-            html, err = try_scrape_url(url_input.strip())
-        if html:
-            players_found = parse_players_from_html(html)
-            meta = extract_match_meta(html)
-            if meta["surface"]:
-                surface = meta["surface"]
-            if players_found:
-                players = players_found
-                source_mode = "url_success"
-            else:
-                error_msg = ("Página obtida mas nomes dos jogadores não foram extraídos automaticamente. "
-                             "Por favor usa o **Modo Manual** abaixo e cola o HTML + nomes.")
-                source_mode = "url_parse_fail"
-        else:
-            error_msg = f"Scraper bloqueado pelo site: {err}. Usa o **Modo Manual** acima."
-            source_mode = "url_fail"
-
-    elif generate_manual:
-        if manual_p1.strip() and manual_p2.strip():
-            players = [manual_p1.strip(), manual_p2.strip()]
-            surface = manual_surface
-            if html_paste.strip():
-                meta = extract_match_meta(html_paste)
-                if meta["surface"]:
-                    surface = meta["surface"]
-            source_mode = "manual"
-        else:
-            error_msg = "Por favor preenche os nomes dos dois jogadores no modo manual."
-
-    # ─────────────────────────────
-    #  ERROR STATE
-    # ─────────────────────────────
-    if error_msg:
-        st.markdown(f"""
-        <div style="background:rgba(255,69,58,0.08);border:1px solid rgba(255,69,58,0.3);
-             border-radius:10px;padding:16px 20px;color:#ff453a;margin:16px 0">
-          ❌ {error_msg}
-        </div>""", unsafe_allow_html=True)
-
-    # ─────────────────────────────
-    #  DASHBOARD RENDER
-    # ─────────────────────────────
-    if players:
-        p1_data = generate_player_data(players[0], surface)
-        p2_data = generate_player_data(players[1], surface)
-
-        result = compute_edge_score(p1_data, p2_data, surface)
-        pct1, pct2, verdict, side = result
-        hand_analysis = handedness_analysis(p1_data, p2_data, surface)
-
-        st.markdown('<hr class="divider">', unsafe_allow_html=True)
-
-        # ── MATCH HEADER ──
-        st.markdown(f"""
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:16px;
-             padding:28px 36px;margin-bottom:24px">
-          <div class="section-label">Partida Detectada</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px">
-            <div style="text-align:center;flex:1">
-              <div style="font-family:'DM Serif Display',serif;font-size:28px;color:#f0f6fc">
-                {players[0]}
-              </div>
-              <div style="margin-top:8px">
-                <span class="badge {'badge-red' if p1_data['mentally_unstable'] else 'badge-green'}">
-                  {'⚠ INSTÁVEL' if p1_data['mentally_unstable'] else '✓ ESTÁVEL'}
-                </span>
-                &nbsp;
-                <span class="badge badge-blue">{'Canhoto 🤚' if p1_data['handedness'] == 'Left' else 'Destro ✋'}</span>
-              </div>
-            </div>
-            <div style="text-align:center;padding:0 20px">
-              <div style="font-family:'JetBrains Mono',monospace;font-size:22px;color:#484f58">VS</div>
-              <div style="margin-top:8px">
-                <span class="badge badge-amber">{surface}</span>
-              </div>
-            </div>
-            <div style="text-align:center;flex:1">
-              <div style="font-family:'DM Serif Display',serif;font-size:28px;color:#f0f6fc">
-                {players[1]}
-              </div>
-              <div style="margin-top:8px">
-                <span class="badge {'badge-red' if p2_data['mentally_unstable'] else 'badge-green'}">
-                  {'⚠ INSTÁVEL' if p2_data['mentally_unstable'] else '✓ ESTÁVEL'}
-                </span>
-                &nbsp;
-                <span class="badge badge-blue">{'Canhoto 🤚' if p2_data['handedness'] == 'Left' else 'Destro ✋'}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # ── EDGE METER ──
-        st.markdown(f"""
-        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;
-             padding:20px 28px;margin-bottom:24px">
-          <div class="section-label">Edge Score — Surface-Weighted Analysis</div>
-          <div style="display:flex;gap:8px;margin-top:14px;align-items:center">
-            <div style="color:#f0f6fc;font-weight:700;font-size:16px;min-width:44px">{pct1}%</div>
-            <div style="flex:1;height:12px;background:var(--bg-elevated);border-radius:6px;overflow:hidden">
-              <div style="display:flex;height:100%">
-                <div style="width:{pct1}%;background:linear-gradient(90deg,#30d158,#25a244);border-radius:6px 0 0 6px"></div>
-                <div style="width:{pct2}%;background:linear-gradient(90deg,#ff453a,#cc3730);border-radius:0 6px 6px 0"></div>
-              </div>
-            </div>
-            <div style="color:#f0f6fc;font-weight:700;font-size:16px;min-width:44px;text-align:right">{pct2}%</div>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-top:6px">
-            <div style="font-size:11px;color:#8b949e;font-family:'JetBrains Mono',monospace">{players[0].split()[0].upper()}</div>
-            <div style="font-size:11px;color:#8b949e;font-family:'JetBrains Mono',monospace">{players[1].split()[0].upper()}</div>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # ── TABS ──
-        tab1, tab2, tab3, tab4 = st.tabs([
-            "📊 Forma & Piso", "🎯 Serviço vs Retorno",
-            "🧠 Momento Psicológico", "🤝 Matchup Técnico"
-        ])
-
-        # ─── TAB 1: FORMA ───
-        with tab1:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.markdown(f"""
-                <div class="metric-card">
-                  <div class="section-label">{players[0]}</div>
-                  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin:12px 0">
+    # TAB 1
+    with tab1:
+        ca,cb=st.columns(2)
+        for col,pn,pm,psf,psw,psc,prank,ppts2 in [
+            (ca,p1n,p1m,p1sf,p1sw,p1sc,p1rank,p1pts),
+            (cb,p2n,p2m,p2sf,p2sw,p2sc,p2rank,p2pts)]:
+            with col:
+                last10=pm.head(10)
+                wr=len(last10[last10["result"]=="W"]) if not last10.empty else 0
+                tot=len(last10)
+                wrp=round(wr/tot*100) if tot>0 else 0
+                rs=f"#{prank}" if prank else "NR"
+                ps2=f"{ppts2:,} pts" if ppts2 else "—"
+                st.markdown(f"""<div class="metric-card">
+                  <div class="section-label">{pn}</div>
+                  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin:10px 0 14px;flex-wrap:wrap;gap:10px">
                     <div>
-                      <div style="font-size:36px;font-family:'DM Serif Display',serif;color:#30d158">{p1_data['winrate']}%</div>
-                      <div style="font-size:12px;color:#8b949e">Win Rate (últimos 10)</div>
+                      <div style="font-size:34px;font-family:'DM Serif Display',serif;color:#30d158">{wrp}%</div>
+                      <div style="font-size:11px;color:#8b949e">Win Rate (últimos 10)</div>
+                    </div>
+                    <div style="text-align:center;padding:10px 14px;background:var(--bg-elevated);border-radius:10px">
+                      <div style="font-size:22px;font-weight:700;color:#ffd60a">{rs}</div>
+                      <div style="font-size:10px;color:#8b949e">Ranking ATP</div>
+                      <div style="font-size:10px;color:#484f58">{ps2}</div>
                     </div>
                     <div style="text-align:right">
-                      <div style="font-size:24px;font-weight:700">{p1_data['surface_form']}%</div>
-                      <div style="font-size:12px;color:#8b949e">Win Rate {surface} (×2 peso)</div>
+                      <div style="font-size:20px;font-weight:700">{psf}%</div>
+                      <div style="font-size:11px;color:#8b949e">{surface} (×2 peso)</div>
+                      <div style="font-size:10px;color:#484f58">{psw}/{psw+max(0,psf and psw)} • {psw}/{pssc if (pssc:=pssc) else pssc}</div>
                     </div>
                   </div>
-                  <div style="display:flex;gap:8px">
-                    <span style="background:rgba(48,209,88,0.1);color:#30d158;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">{p1_data['wins']}V</span>
-                    <span style="background:rgba(255,69,58,0.1);color:#ff453a;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">{p1_data['losses']}D</span>
-                    <span style="background:rgba(10,132,255,0.1);color:#0a84ff;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">{p1_data['surface_wins']}/{p1_data['surface_count']} em {surface}</span>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-                st.markdown('<div style="margin-top:12px"></div>', unsafe_allow_html=True)
-                render_matches_table(p1_data["matches"], surface)
+                </div>""".replace("pssc:=pssc","pssc:=psc").replace("pssc","psc"), unsafe_allow_html=True)
 
-            with col2:
-                st.markdown(f"""
-                <div class="metric-card">
-                  <div class="section-label">{players[1]}</div>
-                  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin:12px 0">
-                    <div>
-                      <div style="font-size:36px;font-family:'DM Serif Display',serif;color:#30d158">{p2_data['winrate']}%</div>
-                      <div style="font-size:12px;color:#8b949e">Win Rate (últimos 10)</div>
-                    </div>
-                    <div style="text-align:right">
-                      <div style="font-size:24px;font-weight:700">{p2_data['surface_form']}%</div>
-                      <div style="font-size:12px;color:#8b949e">Win Rate {surface} (×2 peso)</div>
-                    </div>
-                  </div>
-                  <div style="display:flex;gap:8px">
-                    <span style="background:rgba(48,209,88,0.1);color:#30d158;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">{p2_data['wins']}V</span>
-                    <span style="background:rgba(255,69,58,0.1);color:#ff453a;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">{p2_data['losses']}D</span>
-                    <span style="background:rgba(10,132,255,0.1);color:#0a84ff;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600">{p2_data['surface_wins']}/{p2_data['surface_count']} em {surface}</span>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-                st.markdown('<div style="margin-top:12px"></div>', unsafe_allow_html=True)
-                render_matches_table(p2_data["matches"], surface)
+                # fix simplified
+                st.markdown(f"""<div class="metric-card">
+                  <div class="section-label">{pn}</div>
+                  <div style="display:flex;justify-content:space-between;align-items:flex-end;margin:10px 0 14px;gap:10px">
+                    <div><div style="font-size:34px;font-family:'DM Serif Display',serif;color:#30d158">{wrp}%</div>
+                      <div style="font-size:11px;color:#8b949e">Win Rate (últimos 10)</div></div>
+                    <div style="text-align:center;padding:10px 14px;background:var(--bg-elevated);border-radius:10px">
+                      <div style="font-size:22px;font-weight:700;color:#ffd60a">{rs}</div>
+                      <div style="font-size:10px;color:#8b949e">Ranking ATP</div>
+                      <div style="font-size:10px;color:#484f58">{ps2}</div></div>
+                    <div style="text-align:right"><div style="font-size:20px;font-weight:700">{psf}%</div>
+                      <div style="font-size:11px;color:#8b949e">{surface} form (×2)</div>
+                      <div style="font-size:10px;color:#484f58">{psw}/{psc} jogos</div></div>
+                  </div></div>""", unsafe_allow_html=True)
 
-            st.markdown("""
-            <div style="background:var(--bg-elevated);border-radius:8px;padding:12px 16px;
-                 margin-top:16px;font-size:12px;color:#8b949e">
-              ★ Jogos no mesmo piso têm <strong style="color:#f0f6fc">peso duplo</strong> no cálculo do Surface Form Score
-            </div>""", unsafe_allow_html=True)
+                matches_table(pm, surface)
 
-        # ─── TAB 2: SERVIÇO ───
-        with tab2:
-            st.markdown(f"""
-            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px">
-              <div class="section-label">Comparação Service vs Return</div>
-              <div style="display:flex;justify-content:space-between;margin-bottom:16px;padding:0 0 12px;border-bottom:1px solid var(--border)">
-                <span style="font-weight:600;color:#f0f6fc">{players[0].split()[0]}</span>
-                <span style="font-size:11px;color:#484f58;font-family:'JetBrains Mono',monospace">MÉTRICA</span>
-                <span style="font-weight:600;color:#f0f6fc">{players[1].split()[0]}</span>
-              </div>
-            """, unsafe_allow_html=True)
-
-            metrics_srv = [
-                ("1º Serviço Dentro", p1_data["first_srv_pct"], p2_data["first_srv_pct"]),
-                ("Pts Ganhos no 1º Serviço", p1_data["pts_won_1st_srv"], p2_data["pts_won_1st_srv"]),
-                ("Pts Ganhos no 2º Serviço", p1_data["pts_won_2nd_srv"], p2_data["pts_won_2nd_srv"]),
-                ("Pontos Ganhos no Return", p1_data["return_pts_won"], p2_data["return_pts_won"]),
-                ("Break Points Salvos", p1_data["bp_saved_pct"], p2_data["bp_saved_pct"]),
-                ("Break Points Convertidos", p1_data["bp_converted_pct"], p2_data["bp_converted_pct"]),
-            ]
-            for label, v1, v2 in metrics_srv:
-                render_stat_bar(label, v1, v2, "%", players[0].split()[0], players[1].split()[0])
-
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            col_a, col_b = st.columns(2)
-            with col_a:
-                st.markdown(f"""
-                <div class="metric-card">
-                  <div class="section-label">Aces & DFs — {players[0].split()[0]}</div>
-                  <div style="margin-top:12px;display:flex;gap:24px">
-                    <div>
-                      <div style="font-size:28px;font-weight:700;color:#30d158">{p1_data['aces_per_match']}</div>
-                      <div style="font-size:11px;color:#8b949e">Aces / jogo</div>
-                    </div>
-                    <div>
-                      <div style="font-size:28px;font-weight:700;color:#ff453a">{p1_data['df_per_match']}</div>
-                      <div style="font-size:11px;color:#8b949e">DFs / jogo</div>
-                    </div>
-                  </div>
-                </div>""", unsafe_allow_html=True)
-            with col_b:
-                st.markdown(f"""
-                <div class="metric-card">
-                  <div class="section-label">Aces & DFs — {players[1].split()[0]}</div>
-                  <div style="margin-top:12px;display:flex;gap:24px">
-                    <div>
-                      <div style="font-size:28px;font-weight:700;color:#30d158">{p2_data['aces_per_match']}</div>
-                      <div style="font-size:11px;color:#8b949e">Aces / jogo</div>
-                    </div>
-                    <div>
-                      <div style="font-size:28px;font-weight:700;color:#ff453a">{p2_data['df_per_match']}</div>
-                      <div style="font-size:11px;color:#8b949e">DFs / jogo</div>
-                    </div>
-                  </div>
-                </div>""", unsafe_allow_html=True)
-
-            # Who dominates
-            srv_dom = players[0] if p1_data["pts_won_1st_srv"] > p2_data["pts_won_1st_srv"] else players[1]
-            ret_dom = players[0] if p1_data["return_pts_won"] > p2_data["return_pts_won"] else players[1]
-            st.markdown(f"""
-            <div style="background:var(--bg-elevated);border-radius:10px;padding:16px 20px;margin-top:8px">
-              <div style="display:flex;gap:32px">
-                <div><span style="color:#8b949e;font-size:12px">Melhor Servidor:</span>
-                  <span style="color:#30d158;font-weight:600;margin-left:8px">{srv_dom.split()[0]}</span></div>
-                <div><span style="color:#8b949e;font-size:12px">Melhor Retornador:</span>
-                  <span style="color:#30d158;font-weight:600;margin-left:8px">{ret_dom.split()[0]}</span></div>
-              </div>
-            </div>""", unsafe_allow_html=True)
-
-        # ─── TAB 3: PSICOLÓGICO ───
-        with tab3:
-            col1, col2 = st.columns(2)
-            for col, p in [(col1, p1_data), (col2, p2_data)]:
-                with col:
-                    mental_color = "#ff453a" if p["mentally_unstable"] else "#30d158"
-                    mental_label = "⚠ MENTALMENTE INSTÁVEL" if p["mentally_unstable"] else "✓ MENTALMENTE ESTÁVEL"
-                    last_tb_html = " ".join([
-                        f'<span class="badge {"badge-green" if r == "W" else "badge-red"}">{r}</span>'
-                        for r in p["last_3_tb"]
-                    ]) if p["last_3_tb"] else '<span style="color:#484f58">Sem dados de TB</span>'
-
-                    st.markdown(f"""
-                    <div class="metric-card" style="border-color:{mental_color}40">
-                      <div class="section-label">{p['name']}</div>
-                      <div style="margin:12px 0;font-size:14px;font-weight:700;color:{mental_color}">{mental_label}</div>
-
-                      <div style="margin-top:16px">
-                        <div style="font-size:11px;color:#8b949e;margin-bottom:8px;font-family:'JetBrains Mono',monospace;letter-spacing:1px">ÚLTIMOS TIE-BREAKS</div>
-                        <div style="display:flex;gap:6px">{last_tb_html}</div>
-                      </div>
-
-                      <div style="margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                        <div style="background:var(--bg-elevated);border-radius:8px;padding:12px">
-                          <div style="font-size:24px;font-weight:700">{p['tb_won']}/{p['tb_won']+p['tb_lost']}</div>
-                          <div style="font-size:11px;color:#8b949e;margin-top:2px">Tie-Breaks Ganhos</div>
-                          <div style="font-size:14px;color:#30d158;font-weight:600">{p['tb_pct']}%</div>
-                        </div>
-                        <div style="background:var(--bg-elevated);border-radius:8px;padding:12px">
-                          <div style="font-size:24px;font-weight:700">{p['deciding_wins']}/{p['deciding_total']}</div>
-                          <div style="font-size:11px;color:#8b949e;margin-top:2px">Sets Decisivos Ganhos</div>
-                          <div style="font-size:14px;color:{'#30d158' if p['deciding_pct'] >= 50 else '#ff453a'};font-weight:600">{p['deciding_pct']}%</div>
-                        </div>
-                      </div>
-                    </div>""", unsafe_allow_html=True)
-
-            # Mental verdict
-            if p1_data["mentally_unstable"] and p2_data["mentally_unstable"]:
-                mental_verdict = "⚠ Ambos os jogadores mostram sinais de instabilidade mental. Jogo imprevisível — evitar mercados de Match Odds e focar em Over/Under Games."
-                mental_cls = "danger"
-            elif p1_data["mentally_unstable"]:
-                mental_verdict = f"🎯 {players[1].split()[0]} tem clara vantagem psicológica. Pressionar nos tie-breaks e sets decisivos — considerar {players[1].split()[0]} nas Match Odds."
-                mental_cls = ""
-            elif p2_data["mentally_unstable"]:
-                mental_verdict = f"🎯 {players[0].split()[0]} tem clara vantagem psicológica. Pressionar nos tie-breaks e sets decisivos — considerar {players[0].split()[0]} nas Match Odds."
-                mental_cls = ""
-            else:
-                mental_verdict = "✓ Ambos os jogadores estão mentalmente sólidos. Fator psicológico neutro — analisar via métricas técnicas de serviço e retorno."
-                mental_cls = "neutral"
-
-            st.markdown(f"""
-            <div class="verdict-box {mental_cls}" style="margin-top:16px">
-              <div class="section-label">Veredito Psicológico</div>
-              <div style="font-size:15px;color:#f0f6fc;margin-top:10px;line-height:1.6">{mental_verdict}</div>
-            </div>""", unsafe_allow_html=True)
-
-        # ─── TAB 4: MATCHUP ───
-        with tab4:
-            st.markdown(f"""
-            <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:20px">
-              <div class="section-label">Análise de Lateralidade</div>
-              <div style="margin-top:16px;display:flex;justify-content:center;gap:40px;padding:20px;
-                   background:var(--bg-elevated);border-radius:10px">
-                <div style="text-align:center">
-                  <div style="font-size:32px">{'🤚' if p1_data['handedness'] == 'Left' else '✋'}</div>
-                  <div style="font-family:'DM Serif Display',serif;font-size:18px;margin-top:8px">{players[0].split()[0]}</div>
-                  <div style="font-size:12px;color:#8b949e;margin-top:4px">{p1_data['handedness']} Handed</div>
-                </div>
-                <div style="display:flex;align-items:center;color:#484f58;font-size:24px">⟷</div>
-                <div style="text-align:center">
-                  <div style="font-size:32px">{'🤚' if p2_data['handedness'] == 'Left' else '✋'}</div>
-                  <div style="font-family:'DM Serif Display',serif;font-size:18px;margin-top:8px">{players[1].split()[0]}</div>
-                  <div style="font-size:12px;color:#8b949e;margin-top:4px">{p2_data['handedness']} Handed</div>
-                </div>
-              </div>
-              <div style="margin-top:20px;font-size:14px;line-height:1.8;color:#c9d1d9">{hand_analysis}</div>
-            </div>""", unsafe_allow_html=True)
-
-        # ─────────────────────────────
-        #  BOTTOM LINE VERDICT
-        # ─────────────────────────────
-        st.markdown('<hr class="divider">', unsafe_allow_html=True)
-        st.markdown("""
-        <div class="section-label" style="font-size:12px;letter-spacing:3px;color:#30d158">
-          ▬▬▬ BOTTOM LINE — VEREDITO FINAL ▬▬▬
+        st.markdown("""<div style="background:var(--bg-elevated);border-radius:8px;padding:10px 16px;margin-top:12px;font-size:12px;color:#8b949e">
+          ★ Jogos no mesmo piso têm <strong style="color:#f0f6fc">peso duplo</strong> no Surface Form Score &nbsp;|&nbsp; Fonte: Jeff Sackmann / Tennis Abstract
         </div>""", unsafe_allow_html=True)
 
-        verdict_cls = "danger" if side == "p2" else ("neutral" if side == "neutral" else "")
-        fav_name = players[0] if side == "p1" else (players[1] if side == "p2" else "N/A")
-        fav_pct = pct1 if side == "p1" else (pct2 if side == "p2" else 50)
+    # TAB 2
+    with tab2:
+        st.markdown(f"""<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:16px">
+          <div class="section-label">Comparação Service vs Return — Stats Reais ATP</div>
+          <div style="display:flex;justify-content:space-between;padding:10px 0 12px;border-bottom:1px solid var(--border);margin-bottom:4px">
+            <span style="font-weight:600">{p1n.split()[-1]}</span>
+            <span style="font-size:10px;color:#484f58;font-family:'JetBrains Mono',monospace;letter-spacing:1px">MÉTRICA</span>
+            <span style="font-weight:600">{p2n.split()[-1]}</span>
+          </div>""", unsafe_allow_html=True)
 
-        mental_note = ""
-        if p1_data["mentally_unstable"] and side in ["p2", "neutral"]:
-            mental_note = f" ⚠️ Factor adicional: {players[0].split()[0]} está mentalmente instável (3 TBs consecutivos perdidos)."
-        elif p2_data["mentally_unstable"] and side in ["p1", "neutral"]:
-            mental_note = f" ⚠️ Factor adicional: {players[1].split()[0]} está mentalmente instável (3 TBs consecutivos perdidos)."
+        for label,v1,v2 in [
+            ("1º Serviço Dentro",p1srv["first_srv_pct"],p2srv["first_srv_pct"]),
+            ("Pts Ganhos no 1º Serviço",p1srv["pts_won_1st"],p2srv["pts_won_1st"]),
+            ("Pts Ganhos no 2º Serviço",p1srv["pts_won_2nd"],p2srv["pts_won_2nd"]),
+            ("Pontos Ganhos no Return",p1srv["return_pts_won"],p2srv["return_pts_won"]),
+            ("Break Points Salvos",p1srv["bp_saved_pct"],p2srv["bp_saved_pct"]),
+            ("Break Points Convertidos",p1srv["bp_converted_pct"],p2srv["bp_converted_pct"]),
+        ]:
+            stat_bar(label,round(v1,1) if v1 else 0,round(v2,1) if v2 else 0)
+        st.markdown("</div>",unsafe_allow_html=True)
 
-        surface_note = f"Em {surface}, "
-        if surface == "Clay":
-            surface_note += "o ritmo lento penaliza servos dominantes e amplifica o retorno — verificar quem retorna melhor."
-        elif surface == "Grass":
-            surface_note += "a velocidade alta favorece grandes servidores — o 1º serviço é KPI crítico."
-        elif surface == "Hard":
-            surface_note += "piso equilibrado onde serviço e retorno têm peso similar — analisar ambas as métricas."
+        ca,cb=st.columns(2)
+        for col,pn,ps in [(ca,p1n,p1srv),(cb,p2n,p2srv)]:
+            with col:
+                st.markdown(f"""<div class="metric-card">
+                  <div class="section-label">{pn}</div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:12px">
+                    <div style="background:var(--bg-elevated);border-radius:8px;padding:12px;text-align:center">
+                      <div style="font-size:22px;font-weight:700;color:#30d158">{fmt(ps['aces_pm'],'')}</div>
+                      <div style="font-size:10px;color:#8b949e;margin-top:2px">Aces/jogo</div></div>
+                    <div style="background:var(--bg-elevated);border-radius:8px;padding:12px;text-align:center">
+                      <div style="font-size:22px;font-weight:700;color:#ff453a">{fmt(ps['df_pm'],'')}</div>
+                      <div style="font-size:10px;color:#8b949e;margin-top:2px">DFs/jogo</div></div>
+                    <div style="background:var(--bg-elevated);border-radius:8px;padding:12px;text-align:center">
+                      <div style="font-size:22px;font-weight:700;color:#ffd60a">{fmt(ps['first_srv_pct'])}</div>
+                      <div style="font-size:10px;color:#8b949e;margin-top:2px">1º Srv %</div></div>
+                  </div></div>""", unsafe_allow_html=True)
+
+    # TAB 3
+    with tab3:
+        ca,cb=st.columns(2)
+        for col,pn,pm2 in [(ca,p1n,p1ment),(cb,p2n,p2ment)]:
+            with col:
+                mc="#ff453a" if pm2["mentally_unstable"] else "#30d158"
+                ml="⚠ MENTALMENTE INSTÁVEL" if pm2["mentally_unstable"] else "✓ MENTALMENTE ESTÁVEL"
+                tbs=" ".join([f'<span class="badge {"badge-green" if r=="W" else "badge-red"}">{r}</span>' for r in pm2["last3"]]) or '<span style="color:#484f58">Sem tie-breaks nos dados</span>'
+                ttb=pm2["tb_won"]+pm2["tb_lost"]
+                st.markdown(f"""<div class="metric-card" style="border-color:{mc}40">
+                  <div class="section-label">{pn}</div>
+                  <div style="font-size:14px;font-weight:700;color:{mc};margin:10px 0">{ml}</div>
+                  <div style="margin-bottom:14px">
+                    <div style="font-size:10px;color:#8b949e;margin-bottom:6px;font-family:'JetBrains Mono',monospace;letter-spacing:1px">ÚLTIMOS TIE-BREAKS</div>
+                    <div style="display:flex;gap:5px;flex-wrap:wrap">{tbs}</div></div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <div style="background:var(--bg-elevated);border-radius:8px;padding:12px">
+                      <div style="font-size:20px;font-weight:700">{pm2['tb_won']}/{ttb}</div>
+                      <div style="font-size:10px;color:#8b949e">Tie-Breaks</div>
+                      <div style="font-size:14px;color:{'#30d158' if pm2['tb_pct']>=50 else '#ff453a'};font-weight:600">{pm2['tb_pct']}%</div></div>
+                    <div style="background:var(--bg-elevated);border-radius:8px;padding:12px">
+                      <div style="font-size:20px;font-weight:700">{pm2['dec_wins']}/{pm2['dec_total']}</div>
+                      <div style="font-size:10px;color:#8b949e">Sets Decisivos</div>
+                      <div style="font-size:14px;color:{'#30d158' if pm2['dec_pct']>=50 else '#ff453a'};font-weight:600">{pm2['dec_pct']}%</div></div>
+                  </div></div>""", unsafe_allow_html=True)
+
+        if p1ment["mentally_unstable"] and p2ment["mentally_unstable"]:
+            mv="⚠ Ambos instáveis — evitar Match Odds, preferir Over/Under Games."; mc2="danger"
+        elif p1ment["mentally_unstable"]:
+            mv=f"🎯 {p2n.split()[-1]} tem vantagem psicológica — value nas Match Odds."; mc2=""
+        elif p2ment["mentally_unstable"]:
+            mv=f"🎯 {p1n.split()[-1]} tem vantagem psicológica — value nas Match Odds."; mc2=""
         else:
-            surface_note += "piso interior rápido — similar ao Grass, favorece servos agressivos."
+            mv="✓ Ambos estáveis mentalmente — decidir via métricas técnicas."; mc2="neutral"
+        st.markdown(f"""<div class="verdict-box {mc2}" style="margin-top:14px">
+          <div class="section-label">Veredito Psicológico</div>
+          <div style="font-size:15px;color:#f0f6fc;margin-top:8px;line-height:1.7">{mv}</div>
+        </div>""", unsafe_allow_html=True)
 
-        st.markdown(f"""
-        <div class="verdict-box {verdict_cls}" style="margin-top:16px">
+    # TAB 4
+    with tab4:
+        st.markdown(f"""<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:22px;margin-bottom:16px">
+          <div class="section-label">Head-to-Head Histórico (últimos 3 anos)</div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:40px;margin:16px 0;padding:16px;background:var(--bg-elevated);border-radius:10px">
+            <div style="text-align:center">
+              <div style="font-size:42px;font-weight:800;color:#{'30d158' if h2hw1>=h2hw2 else 'f0f6fc'}">{h2hw1}</div>
+              <div style="font-size:12px;color:#8b949e">{p1n.split()[-1]}</div></div>
+            <div style="font-size:20px;color:#484f58;font-family:'JetBrains Mono',monospace">—</div>
+            <div style="text-align:center">
+              <div style="font-size:42px;font-weight:800;color:#{'30d158' if h2hw2>=h2hw1 else 'f0f6fc'}">{h2hw2}</div>
+              <div style="font-size:12px;color:#8b949e">{p2n.split()[-1]}</div></div>
+          </div>
+          <div class="section-label" style="margin-top:16px">Últimos Confrontos Directos</div>""", unsafe_allow_html=True)
+        h2h_table(h2h_recent)
+        st.markdown("</div>",unsafe_allow_html=True)
+
+        st.markdown(f"""<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:22px">
+          <div class="section-label">Análise de Lateralidade</div>
+          <div style="display:flex;justify-content:center;gap:40px;padding:16px;background:var(--bg-elevated);border-radius:10px;margin:12px 0">
+            <div style="text-align:center">
+              <div style="font-size:28px">{'🤚' if p1h=='L' else '✋'}</div>
+              <div style="font-weight:600;margin-top:4px">{p1n.split()[-1]}</div>
+              <div style="font-size:11px;color:#8b949e">{'Canhoto' if p1h=='L' else 'Destro'}</div></div>
+            <div style="display:flex;align-items:center;color:#484f58;font-size:20px">⟷</div>
+            <div style="text-align:center">
+              <div style="font-size:28px">{'🤚' if p2h=='L' else '✋'}</div>
+              <div style="font-weight:600;margin-top:4px">{p2n.split()[-1]}</div>
+              <div style="font-size:11px;color:#8b949e">{'Canhoto' if p2h=='L' else 'Destro'}</div></div>
+          </div>
+          <div style="font-size:14px;line-height:1.8;color:#c9d1d9;margin-top:10px">{hand_txt}</div>
+        </div>""", unsafe_allow_html=True)
+
+    # TAB 5 — BOTTOM LINE
+    with tab5:
+        favn=p1n if side=="p1" else (p2n if side=="p2" else "—")
+        favp=pct1 if side=="p1" else (pct2 if side=="p2" else 50)
+        vc="danger" if side=="p2" else ("neutral" if side=="neutral" else "")
+        mn=""
+        if p1ment["mentally_unstable"] and side!="p1": mn=f" ⚠ {p1n.split()[-1]} perdeu os últimos 3 tie-breaks."
+        elif p2ment["mentally_unstable"] and side!="p2": mn=f" ⚠ {p2n.split()[-1]} perdeu os últimos 3 tie-breaks."
+        sn={"Hard":"Hard equilibrado — serviço e retorno têm peso similar.",
+            "Clay":"Clay penaliza grandes servidores e amplifica o retorno.",
+            "Grass":"Grass favorece grandes servidores — 1º serviço é KPI crítico.",
+            "Carpet":"Carpet rápido — favorece servos agressivos."}.get(surface,"")
+        hn=""
+        if h2hw1+h2hw2>0:
+            if h2hw1>h2hw2: hn=f" H2H: {p1n.split()[-1]} lidera {h2hw1}-{h2hw2}."
+            elif h2hw2>h2hw1: hn=f" H2H: {p2n.split()[-1]} lidera {h2hw2}-{h2hw1}."
+            else: hn=f" H2H equilibrado {h2hw1}-{h2hw2}."
+        mkt="Diferencial suficiente para posição directa nas Match Odds." if abs(pct1-pct2)>=15 else "Diferencial marginal — considerar Handicap de Sets ou Total Games."
+
+        st.markdown(f"""<div class="verdict-box {vc}">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:20px">
-            <div style="flex:2;min-width:280px">
-              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8b949e;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px">
-                Match Odds Recommendation
-              </div>
-              <div style="font-family:'DM Serif Display',serif;font-size:26px;color:#f0f6fc;line-height:1.2;margin-bottom:12px">
-                {verdict}
-              </div>
-              <div style="font-size:14px;color:#c9d1d9;line-height:1.7">
-                {surface_note}{mental_note}
-                <br><br>
-                Edge Score:{' <strong style="color:#30d158">' if side == 'p1' else ' <strong style="color:#f0f6fc">'}{players[0].split()[0]} {pct1}%</strong>
-                vs {'<strong style="color:#30d158">' if side == 'p2' else '<strong style="color:#f0f6fc">'}{players[1].split()[0]} {pct2}%</strong>.
-                {'Diferencial suficiente para justificar posição nas Match Odds.' if abs(pct1-pct2) >= 15 else 'Diferencial marginal — considerar mercados alternativos (handicap de sets, total games).'}
-              </div>
-            </div>
-            <div style="flex:1;min-width:160px;text-align:center;padding:20px;background:rgba(0,0,0,0.2);border-radius:12px">
-              <div style="font-size:11px;color:#8b949e;margin-bottom:8px;font-family:'JetBrains Mono',monospace;letter-spacing:1px">EDGE SCORE</div>
-              <div style="font-size:52px;font-family:'DM Serif Display',serif;
-                   color:{'#30d158' if side != 'neutral' else '#ffd60a'}">{fav_pct}%</div>
-              <div style="font-size:13px;font-weight:600;color:#f0f6fc;margin-top:4px">
-                {'⚡ ' + fav_name.split()[0] if side != 'neutral' else '🎲 COIN FLIP'}
-              </div>
-            </div>
-          </div>
-          <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08);
-               font-size:11px;color:#484f58;font-family:'JetBrains Mono',monospace">
-            ⚠ Este relatório é gerado para fins analíticos e educativos. Trading responsável. Dados parcialmente simulados — confirmar com fontes oficiais.
-          </div>
-        </div>""", unsafe_allow_html=True)
-
-    # ─────────────────────────────
-    #  EMPTY STATE
-    # ─────────────────────────────
-    elif not generate_from_url and not generate_manual:
-        st.markdown("""
-        <div style="text-align:center;padding:60px 20px;color:#484f58">
-          <div style="font-size:48px;margin-bottom:16px">🎾</div>
-          <div style="font-family:'DM Serif Display',serif;font-size:22px;color:#8b949e;margin-bottom:8px">
-            Pronto para analisar
-          </div>
-          <div style="font-size:13px;line-height:1.7;max-width:400px;margin:0 auto;font-family:'JetBrains Mono',monospace">
-            Cola um link do Flashscore ou Sofascore acima<br>
-            e clica em <strong style="color:#30d158">Gerar Relatório de Elite</strong>
-          </div>
-        </div>""", unsafe_allow_html=True)
-
+            <div style="flex:2;min-width:260px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:10px;color:#8b949e;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px">Match Odds — Veredito Final</div>
+              <div style="font-family:'DM Serif Display',serif;font-size:26px;color:#f0f6fc;line-height:1.2;margin-bottom:14px">{verdict}</div>
+              <div style="font-size:14px;color:#c9d1d9;line-height:1.8">{sn}{mn}{hn}<br>
+                Edge: <strong style="color:{'#30d158' if side=='p1' else '#f0f6fc'}">{p1n.split()[-1]} {pct1}%</strong> vs
+                <strong style="color:{'#30d158' if side=='p2' else '#f0f6fc'}">{p2n.split()[-1]} {pct2}%</strong>. {mkt}
+              </div></div>
+            <div style="flex:1;min-width:150px;text-align:center;padding:24px;background:rgba(0,0,0,0.2);border-radius:12px">
+              <div style="font-size:10px;color:#8b949e;margin-bottom:8px;font-family:'JetBrains Mono',monospace;letter-spacing:1px">EDGE SCORE</div>
+              <div style="font-size:52px;font-family:'DM Serif Display',serif;color:{'#30d158' if side!='neutral' else '#ffd60a'}">{favp}%</div>
+              <div style="font-size:13px;font-weight:600;color:#f0f6fc;margin-top:4px">{'⚡ '+favn.split()[-1] if side!='neutral' else '🎲 COIN FLIP'}</div>
+            </div></div>
+          <div style="margin-top:20px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.07);font-size:11px;color:#484f58;font-family:'JetBrains Mono',monospace">
+            Fonte: Jeff Sackmann / Tennis Abstract · ATP últimos 3 anos · Uso educativo — trading responsável.
+          </div></div>""", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
+    
