@@ -389,11 +389,11 @@ def main():
     p1st=season_stats_from_detail(p1det,surface); p2st=season_stats_from_detail(p2det,surface)
     p1h=p1st.get("hand","Right"); p2h=p2st.get("hand","Right")
 
-    # Use ranking from standings (more reliable)
-    if not p1st["rank"] and p1_rank_pos:
+    # Always use ranking from standings — it's live ATP ranking (more reliable than detail)
+    if p1_rank_pos:
         try: p1st["rank"]=int(p1_rank_pos)
         except: pass
-    if not p2st["rank"] and p2_rank_pos:
+    if p2_rank_pos:
         try: p2st["rank"]=int(p2_rank_pos)
         except: pass
 
@@ -525,76 +525,75 @@ def main():
         st.markdown("</div>",unsafe_allow_html=True)
 
         # ── DOMINANCE RATE ──
-        def dr_color(v):
+        def _drc(v):
             if v is None: return "#484f58"
             if v >= 60: return "#30d158"
             if v >= 50: return "#ffd60a"
             return "#ff453a"
-        def dr_fmt(v): return f"{v}%" if v is not None else "N/D"
+        def _drf(v): return (str(v)+"%") if v is not None else "N/D"
 
-        st.markdown(f"""<div class="card">
+        # Pre-compute all values to avoid f-string conflicts
+        _p1n  = p1n.split()[-1]
+        _p2n  = p2n.split()[-1]
+        _surf = surface.upper()
+
+        _c1a=_drc(p1dr_all);  _v1a=_drf(p1dr_all);  _s1a=f"{p1sw_all}S/{p1sl_all}S"
+        _c2a=_drc(p2dr_all);  _v2a=_drf(p2dr_all);  _s2a=f"{p2sw_all}S/{p2sl_all}S"
+        _c1s=_drc(p1dr_surf); _v1s=_drf(p1dr_surf); _s1s=f"{p1sw_surf}S/{p1sl_surf}S"
+        _c2s=_drc(p2dr_surf); _v2s=_drf(p2dr_surf); _s2s=f"{p2sw_surf}S/{p2sl_surf}S"
+        _c1t=_drc(p1dr_10);   _v1t=_drf(p1dr_10);   _s1t=f"{p1sw_10}S/{p1sl_10}S"
+        _c2t=_drc(p2dr_10);   _v2t=_drf(p2dr_10);   _s2t=f"{p2sw_10}S/{p2sl_10}S"
+
+        dr_html = f"""<div class="card">
           <div class="sl">Dominance Rate — Controlo de Sets</div>
           <div style="font-size:12px;color:#8b949e;margin-bottom:16px">
-            Sets ganhos / Sets totais jogados — métrica de dominância real independente do resultado final
+            Sets ganhos / Sets totais — métrica de dominância real independente do resultado final
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
-
             <div style="background:var(--el);border-radius:10px;padding:16px">
               <div style="font-size:10px;color:#484f58;letter-spacing:1px;margin-bottom:10px">OVERALL</div>
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <div style="text-align:center;flex:1">
-                  <div style="font-size:26px;font-weight:800;color:{dr_color(p1dr_all)}">{dr_fmt(p1dr_all)}</div>
-                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{p1n.split()[-1]}</div>
-                  <div style="font-size:10px;color:#484f58">{p1sw_all}S/{p1sl_all}S</div>
-                </div>
+                  <div style="font-size:26px;font-weight:800;color:{_c1a}">{_v1a}</div>
+                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{_p1n}</div>
+                  <div style="font-size:10px;color:#484f58">{_s1a}</div></div>
                 <div style="font-size:12px;color:#484f58;padding:0 8px">vs</div>
                 <div style="text-align:center;flex:1">
-                  <div style="font-size:26px;font-weight:800;color:{dr_color(p2dr_all)}">{dr_fmt(p2dr_all)}</div>
-                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{p2n.split()[-1]}</div>
-                  <div style="font-size:10px;color:#484f58">{p2sw_all}S/{p2sl_all}S</div>
-                </div>
-              </div>
-            </div>
-
+                  <div style="font-size:26px;font-weight:800;color:{_c2a}">{_v2a}</div>
+                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{_p2n}</div>
+                  <div style="font-size:10px;color:#484f58">{_s2a}</div></div>
+              </div></div>
             <div style="background:var(--el);border-radius:10px;padding:16px;border:1px solid rgba(255,214,10,.2)">
-              <div style="font-size:10px;color:#ffd60a;letter-spacing:1px;margin-bottom:10px">EM {surface.upper()} (×2 PESO)</div>
+              <div style="font-size:10px;color:#ffd60a;letter-spacing:1px;margin-bottom:10px">EM {_surf} (x2 PESO)</div>
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <div style="text-align:center;flex:1">
-                  <div style="font-size:26px;font-weight:800;color:{dr_color(p1dr_surf)}">{dr_fmt(p1dr_surf)}</div>
-                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{p1n.split()[-1]}</div>
-                  <div style="font-size:10px;color:#484f58">{p1sw_surf}S/{p1sl_surf}S</div>
-                </div>
+                  <div style="font-size:26px;font-weight:800;color:{_c1s}">{_v1s}</div>
+                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{_p1n}</div>
+                  <div style="font-size:10px;color:#484f58">{_s1s}</div></div>
                 <div style="font-size:12px;color:#484f58;padding:0 8px">vs</div>
                 <div style="text-align:center;flex:1">
-                  <div style="font-size:26px;font-weight:800;color:{dr_color(p2dr_surf)}">{dr_fmt(p2dr_surf)}</div>
-                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{p2n.split()[-1]}</div>
-                  <div style="font-size:10px;color:#484f58">{p2sw_surf}S/{p2sl_surf}S</div>
-                </div>
-              </div>
-            </div>
-
+                  <div style="font-size:26px;font-weight:800;color:{_c2s}">{_v2s}</div>
+                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{_p2n}</div>
+                  <div style="font-size:10px;color:#484f58">{_s2s}</div></div>
+              </div></div>
             <div style="background:var(--el);border-radius:10px;padding:16px">
-              <div style="font-size:10px;color:#484f58;letter-spacing:1px;margin-bottom:10px">ÚLTIMOS 10 JOGOS</div>
+              <div style="font-size:10px;color:#484f58;letter-spacing:1px;margin-bottom:10px">ULTIMOS 10 JOGOS</div>
               <div style="display:flex;justify-content:space-between;align-items:center">
                 <div style="text-align:center;flex:1">
-                  <div style="font-size:26px;font-weight:800;color:{dr_color(p1dr_10)}">{dr_fmt(p1dr_10)}</div>
-                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{p1n.split()[-1]}</div>
-                  <div style="font-size:10px;color:#484f58">{p1sw_10}S/{p1sl_10}S</div>
-                </div>
+                  <div style="font-size:26px;font-weight:800;color:{_c1t}">{_v1t}</div>
+                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{_p1n}</div>
+                  <div style="font-size:10px;color:#484f58">{_s1t}</div></div>
                 <div style="font-size:12px;color:#484f58;padding:0 8px">vs</div>
                 <div style="text-align:center;flex:1">
-                  <div style="font-size:26px;font-weight:800;color:{dr_color(p2dr_10)}">{dr_fmt(p2dr_10)}</div>
-                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{p2n.split()[-1]}</div>
-                  <div style="font-size:10px;color:#484f58">{p2sw_10}S/{p2sl_10}S</div>
-                </div>
-              </div>
-            </div>
-
+                  <div style="font-size:26px;font-weight:800;color:{_c2t}">{_v2t}</div>
+                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{_p2n}</div>
+                  <div style="font-size:10px;color:#484f58">{_s2t}</div></div>
+              </div></div>
           </div>
           <div style="margin-top:12px;font-size:11px;color:#484f58">
-            🟢 ≥60% dominante &nbsp;·&nbsp; 🟡 50–60% equilibrado &nbsp;·&nbsp; 🔴 &lt;50% vulnerável
-          </div>
-        </div>""",unsafe_allow_html=True)
+            Verde &gt;=60% dominante &nbsp;·&nbsp; Amarelo 50-60% equilibrado &nbsp;·&nbsp; Vermelho &lt;50% vulneravel
+          </div></div>"""
+        st.markdown(dr_html, unsafe_allow_html=True)
 
     with t3:
         ca,cb=st.columns(2)
@@ -686,4 +685,3 @@ def main():
 
 if __name__=="__main__":
     main()
-    
