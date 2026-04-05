@@ -189,6 +189,32 @@ def season_stats_from_detail(detail, surface):
             except: pass
     return out
 
+def dominance_rate(matches, surface=None, n=None):
+    """
+    Calculate Dominance Rate from set scores.
+    DR = sets won / (sets won + sets lost)
+    Optional: filter by surface, limit to last n matches.
+    """
+    pool = matches
+    if n: pool = pool[:n]
+    if surface: pool = [m for m in pool if m["surface"].lower() == surface.lower()]
+
+    sets_won = 0; sets_lost = 0
+    for m in pool:
+        for s in m.get("scores_raw", []):
+            if not isinstance(s, dict): continue
+            is_p1 = m.get("is_p1", True)
+            try:
+                my  = int(s.get("score_first","0")  if is_p1 else s.get("score_second","0"))
+                opp = int(s.get("score_second","0") if is_p1 else s.get("score_first","0"))
+                if my > opp: sets_won += 1
+                else: sets_lost += 1
+            except: pass
+
+    total = sets_won + sets_lost
+    dr = round(sets_won / total * 100, 1) if total > 0 else None
+    return dr, sets_won, sets_lost, total
+
 def edge_score(p1sf,p2sf,p1me,p2me,p1st,p2st,n1,n2):
     s1,s2=0,0
     d=abs(p1sf-p2sf)
@@ -371,6 +397,14 @@ def main():
         try: p2st["rank"]=int(p2_rank_pos)
         except: pass
 
+    # Dominance Rate — overall, surface-specific, last 10
+    p1dr_all,  p1sw_all,  p1sl_all,  _ = dominance_rate(p1m)
+    p1dr_surf, p1sw_surf, p1sl_surf, _ = dominance_rate(p1m, surface=surface)
+    p1dr_10,   p1sw_10,   p1sl_10,   _ = dominance_rate(p1m, n=10)
+    p2dr_all,  p2sw_all,  p2sl_all,  _ = dominance_rate(p2m)
+    p2dr_surf, p2sw_surf, p2sl_surf, _ = dominance_rate(p2m, surface=surface)
+    p2dr_10,   p2sw_10,   p2sl_10,   _ = dominance_rate(p2m, n=10)
+
     pct1,pct2,verdict,side=edge_score(p1sf,p2sf,p1me,p2me,p1st,p2st,p1n,p2n)
     htxt=hand_txt(p1h,p2h,p1n,p2n,surface)
 
@@ -490,6 +524,78 @@ def main():
         bar("Sets Decisivos Win %",p1me["d_pct"],p2me["d_pct"])
         st.markdown("</div>",unsafe_allow_html=True)
 
+        # ── DOMINANCE RATE ──
+        def dr_color(v):
+            if v is None: return "#484f58"
+            if v >= 60: return "#30d158"
+            if v >= 50: return "#ffd60a"
+            return "#ff453a"
+        def dr_fmt(v): return f"{v}%" if v is not None else "N/D"
+
+        st.markdown(f"""<div class="card">
+          <div class="sl">Dominance Rate — Controlo de Sets</div>
+          <div style="font-size:12px;color:#8b949e;margin-bottom:16px">
+            Sets ganhos / Sets totais jogados — métrica de dominância real independente do resultado final
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+
+            <div style="background:var(--el);border-radius:10px;padding:16px">
+              <div style="font-size:10px;color:#484f58;letter-spacing:1px;margin-bottom:10px">OVERALL</div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div style="text-align:center;flex:1">
+                  <div style="font-size:26px;font-weight:800;color:{dr_color(p1dr_all)}">{dr_fmt(p1dr_all)}</div>
+                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{p1n.split()[-1]}</div>
+                  <div style="font-size:10px;color:#484f58">{p1sw_all}S/{p1sl_all}S</div>
+                </div>
+                <div style="font-size:12px;color:#484f58;padding:0 8px">vs</div>
+                <div style="text-align:center;flex:1">
+                  <div style="font-size:26px;font-weight:800;color:{dr_color(p2dr_all)}">{dr_fmt(p2dr_all)}</div>
+                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{p2n.split()[-1]}</div>
+                  <div style="font-size:10px;color:#484f58">{p2sw_all}S/{p2sl_all}S</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="background:var(--el);border-radius:10px;padding:16px;border:1px solid rgba(255,214,10,.2)">
+              <div style="font-size:10px;color:#ffd60a;letter-spacing:1px;margin-bottom:10px">EM {surface.upper()} (×2 PESO)</div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div style="text-align:center;flex:1">
+                  <div style="font-size:26px;font-weight:800;color:{dr_color(p1dr_surf)}">{dr_fmt(p1dr_surf)}</div>
+                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{p1n.split()[-1]}</div>
+                  <div style="font-size:10px;color:#484f58">{p1sw_surf}S/{p1sl_surf}S</div>
+                </div>
+                <div style="font-size:12px;color:#484f58;padding:0 8px">vs</div>
+                <div style="text-align:center;flex:1">
+                  <div style="font-size:26px;font-weight:800;color:{dr_color(p2dr_surf)}">{dr_fmt(p2dr_surf)}</div>
+                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{p2n.split()[-1]}</div>
+                  <div style="font-size:10px;color:#484f58">{p2sw_surf}S/{p2sl_surf}S</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="background:var(--el);border-radius:10px;padding:16px">
+              <div style="font-size:10px;color:#484f58;letter-spacing:1px;margin-bottom:10px">ÚLTIMOS 10 JOGOS</div>
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div style="text-align:center;flex:1">
+                  <div style="font-size:26px;font-weight:800;color:{dr_color(p1dr_10)}">{dr_fmt(p1dr_10)}</div>
+                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{p1n.split()[-1]}</div>
+                  <div style="font-size:10px;color:#484f58">{p1sw_10}S/{p1sl_10}S</div>
+                </div>
+                <div style="font-size:12px;color:#484f58;padding:0 8px">vs</div>
+                <div style="text-align:center;flex:1">
+                  <div style="font-size:26px;font-weight:800;color:{dr_color(p2dr_10)}">{dr_fmt(p2dr_10)}</div>
+                  <div style="font-size:10px;color:#8b949e;margin-top:2px">{p2n.split()[-1]}</div>
+                  <div style="font-size:10px;color:#484f58">{p2sw_10}S/{p2sl_10}S</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div style="margin-top:12px;font-size:11px;color:#484f58">
+            🟢 ≥60% dominante &nbsp;·&nbsp; 🟡 50–60% equilibrado &nbsp;·&nbsp; 🔴 &lt;50% vulnerável
+          </div>
+        </div>""",unsafe_allow_html=True)
+
     with t3:
         ca,cb=st.columns(2)
         for col,pn,pm2 in [(ca,p1n,p1me),(cb,p2n,p2me)]:
@@ -580,3 +686,4 @@ def main():
 
 if __name__=="__main__":
     main()
+    
